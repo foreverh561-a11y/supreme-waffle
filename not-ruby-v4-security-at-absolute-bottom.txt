@@ -9316,4 +9316,4 @@ local function setupShooterGamesTab(shooterSecurityAllowed)
 end
 
 
-setupShooterGamesTab(shooterSecurityAllowed)
+local function setupShooterGamesTab(shooterSecurityAllowed)
