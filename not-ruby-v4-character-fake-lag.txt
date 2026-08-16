@@ -1,0 +1,2976 @@
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local CollectionService = game:GetService("CollectionService")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local SKULL = utf8.char(0x2620,0xFE0F)
+local character
+local humanoid
+local root
+local function loadCharacter()
+	character = player.Character or player.CharacterAdded:Wait()
+	humanoid = character:WaitForChild("Humanoid")
+	root = character:WaitForChild("HumanoidRootPart")
+end
+loadCharacter()
+local walkSpeed = 16
+local jumpPower = 50
+local sprintSpeed = 42
+local flySpeed = 70
+local scanRadius = 5000
+local sprinting = false
+local flying = false
+local pitchFlight = true
+local noclip = false
+local nightVision = false
+local fullBright = false
+local xrayMode = false
+local playerLocator = false
+local monsterLocator = false
+local resizeLocked = false
+local movementLocked = false
+local compactMode = false
+local universalCleanup = function() end
+local flyUp = false
+local flyDown = false
+local bodyGyro
+local flightVelocity
+local menuDeleted = false
+local visionEffect
+local originalCollision = {}
+local originalTransparency = {}
+local playerMarkers = {}
+local monsterMarkers = {}
+local originalLighting = {
+	Brightness = Lighting.Brightness,
+	ExposureCompensation = Lighting.ExposureCompensation,
+	Ambient = Lighting.Ambient,
+	OutdoorAmbient = Lighting.OutdoorAmbient
+}
+local originalFOV = camera and camera.FieldOfView or 70
+local themes = {
+	Color3.fromRGB(225,45,60),
+	Color3.fromRGB(245,70,80),
+	Color3.fromRGB(195,30,45),
+	Color3.fromRGB(255,95,105)
+}
+local themeIndex = 1
+local accent = themes[themeIndex]
+local ACTIVE_TEXT = Color3.fromRGB(5,10,14)
+local TEXT = Color3.fromRGB(240,242,248)
+local MUTED = Color3.fromRGB(148,154,174)
+local BG = Color3.fromRGB(8,10,16)
+local PANEL = Color3.fromRGB(13,16,24)
+local SURFACE = Color3.fromRGB(21,24,35)
+local SURFACE_2 = Color3.fromRGB(27,31,44)
+local activeToggleButtons = {}
+local gui = Instance.new("ScreenGui")
+gui.Name = "ClarkControlCenter"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = player:WaitForChild("PlayerGui")
+local panel = Instance.new("Frame")
+panel.Name = "MainPanel"
+panel.Size = UDim2.fromOffset(560,430)
+panel.Position = UDim2.new(.5,-280,.5,-215)
+panel.BackgroundColor3 = BG
+panel.BorderSizePixel = 0
+panel.Active = true
+panel.ClipsDescendants = false
+panel.Parent = gui
+local panelCorner = Instance.new("UICorner")
+panelCorner.CornerRadius = UDim.new(0,18)
+panelCorner.Parent = panel
+local panelStroke = Instance.new("UIStroke")
+panelStroke.Color = accent
+panelStroke.Thickness = 1.6
+panelStroke.Transparency = .05
+panelStroke.Parent = panel
+local function corner(object,radius)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0,radius or 10)
+	c.Parent = object
+	return c
+end
+local function addStroke(object,color,thickness,transparency)
+	local s = Instance.new("UIStroke")
+	s.Color = color or accent
+	s.Thickness = thickness or 1
+	s.Transparency = transparency or 0
+	s.Parent = object
+	return s
+end
+local header = Instance.new("Frame")
+header.Name = "Header"
+header.Size = UDim2.new(1,0,0,52)
+header.BackgroundColor3 = PANEL
+header.BorderSizePixel = 0
+header.Active = true
+header.Parent = panel
+corner(header,18)
+local headerBottomMask = Instance.new("Frame")
+headerBottomMask.Size = UDim2.new(1,0,0,18)
+headerBottomMask.Position = UDim2.new(0,0,1,-18)
+headerBottomMask.BackgroundColor3 = PANEL
+headerBottomMask.BorderSizePixel = 0
+headerBottomMask.Parent = header
+local title = Instance.new("TextLabel")
+title.BackgroundTransparency = 1
+title.Position = UDim2.fromOffset(15,7)
+title.Size = UDim2.new(1,-110,0,19)
+title.Text = "NOT RUBY V4 // HUB"
+title.TextSize = 14
+title.Font = Enum.Font.GothamBlack
+title.TextColor3 = TEXT
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = header
+local status = Instance.new("TextLabel")
+status.BackgroundTransparency = 1
+status.Position = UDim2.fromOffset(16,28)
+status.Size = UDim2.new(1,-110,0,15)
+status.Text = "READY"
+status.TextSize = 9
+status.Font = Enum.Font.GothamBold
+status.TextColor3 = accent
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.Parent = header
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.fromOffset(34,34)
+closeButton.Position = UDim2.new(1,-42,0,9)
+closeButton.Text = "X"
+closeButton.TextSize = 14
+closeButton.Font = Enum.Font.GothamBlack
+closeButton.TextColor3 = TEXT
+closeButton.BackgroundColor3 = Color3.fromRGB(73,32,44)
+closeButton.AutoButtonColor = false
+closeButton.ZIndex = 210
+closeButton.Parent = header
+corner(closeButton,10)
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Size = UDim2.fromOffset(34,34)
+minimizeButton.Position = UDim2.new(1,-82,0,9)
+minimizeButton.Text = "-"
+minimizeButton.TextSize = 18
+minimizeButton.Font = Enum.Font.GothamBlack
+minimizeButton.TextColor3 = TEXT
+minimizeButton.BackgroundColor3 = SURFACE_2
+minimizeButton.AutoButtonColor = false
+minimizeButton.ZIndex = 210
+minimizeButton.Parent = header
+corner(minimizeButton,10)
+local function setStatus(text)
+	if not status or not status.Parent then
+		return
+	end
+	status.Text = text
+	status.TextColor3 = accent
+end
+local sidebar = Instance.new("Frame")
+sidebar.Name = "Sidebar"
+sidebar.Position = UDim2.fromOffset(7,59)
+sidebar.Size = UDim2.new(0,126,1,-66)
+sidebar.BackgroundColor3 = PANEL
+sidebar.BorderSizePixel = 0
+sidebar.Parent = panel
+corner(sidebar,14)
+local sidebarPadding = Instance.new("UIPadding")
+sidebarPadding.PaddingTop = UDim.new(0,8)
+sidebarPadding.PaddingLeft = UDim.new(0,7)
+sidebarPadding.PaddingRight = UDim.new(0,7)
+sidebarPadding.PaddingBottom = UDim.new(0,8)
+sidebarPadding.Parent = sidebar
+local sidebarLayout = Instance.new("UIListLayout")
+sidebarLayout.Padding = UDim.new(0,6)
+sidebarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+sidebarLayout.Parent = sidebar
+local content = Instance.new("Frame")
+content.Name = "Content"
+content.Position = UDim2.fromOffset(140,59)
+content.Size = UDim2.new(1,-147,1,-66)
+content.BackgroundColor3 = PANEL
+content.BorderSizePixel = 0
+content.ClipsDescendants = true
+content.Parent = panel
+corner(content,14)
+local pages = {}
+local tabButtons = {}
+local currentTab = "HOME"
+local function makePage(name)
+	local page = Instance.new("ScrollingFrame")
+	page.Name = name.."Page"
+	page.Size = UDim2.fromScale(1,1)
+	page.BackgroundTransparency = 1
+	page.BorderSizePixel = 0
+	page.ScrollBarThickness = 4
+	page.ScrollBarImageColor3 = accent
+	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	page.CanvasSize = UDim2.new()
+	page.Visible = false
+	page.Parent = content
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0,10)
+	pad.PaddingBottom = UDim.new(0,12)
+	pad.PaddingLeft = UDim.new(0,10)
+	pad.PaddingRight = UDim.new(0,10)
+	pad.Parent = page
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0,8)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.Parent = page
+	pages[name] = page
+	return page
+end
+local function makeTab(name,text)
+	local button = Instance.new("TextButton")
+	button.Name = name.."Tab"
+	button.Size = UDim2.new(1,0,0,42)
+	button.Text = text
+	button.TextSize = 10
+	button.Font = Enum.Font.GothamBlack
+	button.TextColor3 = TEXT
+	button.BackgroundColor3 = SURFACE
+	button.AutoButtonColor = false
+	button.Parent = sidebar
+	corner(button,10)
+	tabButtons[name] = button
+	return button
+end
+local function applyTabVisuals()
+	for name,button in pairs(tabButtons) do
+		if name == currentTab then
+			button.BackgroundColor3 = accent
+			button.TextColor3 = ACTIVE_TEXT
+		else
+			button.BackgroundColor3 = SURFACE
+			button.TextColor3 = TEXT
+		end
+	end
+	for name,page in pairs(pages) do
+		page.Visible = name == currentTab
+		page.ScrollBarImageColor3 = accent
+	end
+end
+local function setTab(name)
+	if not pages[name] then
+		return
+	end
+	currentTab = name
+	applyTabVisuals()
+	local displayName = name
+	if name == "LOCUST" then
+		displayName = "HOUSE OF THE LOCUST"
+	elseif name == "HOME" then
+		displayName = "UNIVERSAL"
+	elseif name == "CREATOR" then
+		displayName = "CREATOR"
+	end
+	setStatus(displayName)
+end
+local homeTab = makeTab("HOME","UNIVERSAL")
+local movementTab = makeTab("MOVEMENT","MOVEMENT")
+local visualsTab = makeTab("VISUALS","VISUALS")
+local trackersTab = makeTab("TRACKERS","TRACKERS")
+local locustTab = makeTab("LOCUST","HOUSE OF LOCUST")
+local settingsTab = makeTab("SETTINGS","SETTINGS")
+homeTab.Activated:Connect(function() setTab("HOME") end)
+movementTab.Activated:Connect(function() setTab("MOVEMENT") end)
+visualsTab.Activated:Connect(function() setTab("VISUALS") end)
+trackersTab.Activated:Connect(function() setTab("TRACKERS") end)
+locustTab.Activated:Connect(function() setTab("LOCUST") end)
+settingsTab.Activated:Connect(function() setTab("SETTINGS") end)
+local homePage = makePage("HOME")
+local movementPage = makePage("MOVEMENT")
+local visualsPage = makePage("VISUALS")
+local trackersPage = makePage("TRACKERS")
+local locustPage = makePage("LOCUST")
+local settingsPage = makePage("SETTINGS")
+local function makeSection(page,titleText,description)
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(1,0,0,description and 66 or 48)
+	frame.BackgroundColor3 = SURFACE
+	frame.BorderSizePixel = 0
+	frame.Parent = page
+	corner(frame,12)
+	local sectionTitle = Instance.new("TextLabel")
+	sectionTitle.BackgroundTransparency = 1
+	sectionTitle.Position = UDim2.fromOffset(12,8)
+	sectionTitle.Size = UDim2.new(1,-24,0,20)
+	sectionTitle.Text = titleText
+	sectionTitle.TextSize = 11
+	sectionTitle.Font = Enum.Font.GothamBlack
+	sectionTitle.TextColor3 = TEXT
+	sectionTitle.TextXAlignment = Enum.TextXAlignment.Left
+	sectionTitle.Parent = frame
+	if description then
+		local desc = Instance.new("TextLabel")
+		desc.BackgroundTransparency = 1
+		desc.Position = UDim2.fromOffset(12,29)
+		desc.Size = UDim2.new(1,-24,0,29)
+		desc.Text = description
+		desc.TextWrapped = true
+		desc.TextSize = 9
+		desc.Font = Enum.Font.Gotham
+		desc.TextColor3 = MUTED
+		desc.TextXAlignment = Enum.TextXAlignment.Left
+		desc.TextYAlignment = Enum.TextYAlignment.Top
+		desc.Parent = frame
+	end
+	return frame
+end
+local function makeAction(page,text)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1,0,0,44)
+	button.Text = text
+	button.TextSize = 10
+	button.Font = Enum.Font.GothamBold
+	button.TextColor3 = TEXT
+	button.BackgroundColor3 = SURFACE_2
+	button.AutoButtonColor = false
+	button.Parent = page
+	corner(button,11)
+	return button
+end
+local function makePair(page,leftText,rightText)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1,0,0,44)
+	row.BackgroundTransparency = 1
+	row.Parent = page
+	local left = Instance.new("TextButton")
+	left.Size = UDim2.new(.5,-4,1,0)
+	left.Text = leftText
+	left.TextSize = 10
+	left.Font = Enum.Font.GothamBold
+	left.TextColor3 = TEXT
+	left.BackgroundColor3 = SURFACE_2
+	left.AutoButtonColor = false
+	left.Parent = row
+	corner(left,11)
+	local right = Instance.new("TextButton")
+	right.Size = UDim2.new(.5,-4,1,0)
+	right.Position = UDim2.new(.5,4,0,0)
+	right.Text = rightText
+	right.TextSize = 10
+	right.Font = Enum.Font.GothamBold
+	right.TextColor3 = TEXT
+	right.BackgroundColor3 = SURFACE_2
+	right.AutoButtonColor = false
+	right.Parent = row
+	corner(right,11)
+	return left,right
+end
+local function makeNumberRow(page,labelText,defaultText,buttonText)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1,0,0,48)
+	row.BackgroundColor3 = SURFACE
+	row.BorderSizePixel = 0
+	row.Parent = page
+	corner(row,11)
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Position = UDim2.fromOffset(12,0)
+	label.Size = UDim2.new(.30,-6,1,0)
+	label.Text = labelText
+	label.TextSize = 9
+	label.Font = Enum.Font.GothamBlack
+	label.TextColor3 = TEXT
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = row
+	local box = Instance.new("TextBox")
+	box.Size = UDim2.new(.25,-5,0,34)
+	box.Position = UDim2.new(.30,0,.5,-17)
+	box.Text = defaultText
+	box.ClearTextOnFocus = false
+	box.TextSize = 11
+	box.Font = Enum.Font.GothamBold
+	box.TextColor3 = TEXT
+	box.BackgroundColor3 = SURFACE_2
+	box.Parent = row
+	corner(box,9)
+	local apply = Instance.new("TextButton")
+	apply.Size = UDim2.new(.45,-12,0,34)
+	apply.Position = UDim2.new(.55,5,.5,-17)
+	apply.Text = buttonText or "APPLY"
+	apply.TextSize = 9
+	apply.Font = Enum.Font.GothamBold
+	apply.TextColor3 = TEXT
+	apply.BackgroundColor3 = SURFACE_2
+	apply.AutoButtonColor = false
+	apply.Parent = row
+	corner(apply,9)
+	return box,apply
+end
+local function setupCreatorTab()
+	local creatorTab = makeTab("CREATOR","CREATOR")
+	local creatorPage = makePage("CREATOR")
+	creatorTab.Activated:Connect(function()
+		setTab("CREATOR")
+	end)
+	makeSection(
+		creatorPage,
+		"not ruby's hub",
+		"Creator profile"
+	)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1,0,0,250)
+	card.BackgroundColor3 = SURFACE
+	card.BorderSizePixel = 0
+	card.Parent = creatorPage
+	corner(card,14)
+	local avatar = Instance.new("ImageLabel")
+	avatar.AnchorPoint = Vector2.new(.5,0)
+	avatar.Position = UDim2.new(.5,0,0,18)
+	avatar.Size = UDim2.fromOffset(128,128)
+	avatar.BackgroundColor3 = SURFACE_2
+	avatar.BorderSizePixel = 0
+	avatar.ScaleType = Enum.ScaleType.Crop
+	avatar.Parent = card
+	corner(avatar,64)
+	addStroke(avatar,accent,1.5,.05)
+	local display = Instance.new("TextLabel")
+	display.BackgroundTransparency = 1
+	display.Position = UDim2.fromOffset(14,156)
+	display.Size = UDim2.new(1,-28,0,26)
+	display.Text = "not ruby"
+	display.TextSize = 18
+	display.Font = Enum.Font.GothamBlack
+	display.TextColor3 = TEXT
+	display.TextXAlignment = Enum.TextXAlignment.Center
+	display.Parent = card
+	local username = Instance.new("TextLabel")
+	username.BackgroundTransparency = 1
+	username.Position = UDim2.fromOffset(14,184)
+	username.Size = UDim2.new(1,-28,0,20)
+	username.Text = "@werdx33xxxr5"
+	username.TextSize = 11
+	username.Font = Enum.Font.GothamBold
+	username.TextColor3 = accent
+	username.TextXAlignment = Enum.TextXAlignment.Center
+	username.Parent = card
+	local userId = Instance.new("TextLabel")
+	userId.BackgroundTransparency = 1
+	userId.Position = UDim2.fromOffset(14,208)
+	userId.Size = UDim2.new(1,-28,0,20)
+	userId.Text = "USER ID: 5717888103"
+	userId.TextSize = 10
+	userId.Font = Enum.Font.GothamBold
+	userId.TextColor3 = MUTED
+	userId.TextXAlignment = Enum.TextXAlignment.Center
+	userId.Parent = card
+	task.spawn(function()
+		local ok,image = pcall(function()
+			return Players:GetUserThumbnailAsync(
+				5717888103,
+				Enum.ThumbnailType.AvatarBust,
+				Enum.ThumbnailSize.Size420x420
+			)
+		end)
+		if ok and image and avatar.Parent then
+			avatar.Image = image
+		end
+	end)
+	makeSection(
+		creatorPage,
+		"CREATOR",
+		"Username: werdx33xxxr5   |   Display name: not ruby"
+	)
+
+	-- Keep every sidebar tab inside the panel when it is resized smaller.
+	local function resizeSidebarTabs()
+		local buttons = {}
+		for _,button in pairs(tabButtons) do
+			if button and button.Parent == sidebar then
+				table.insert(buttons,button)
+			end
+		end
+
+		local count = #buttons
+		if count == 0 then
+			return
+		end
+
+		local gap = 6
+		local padding = 16
+		local availableHeight = math.max(
+			1,
+			sidebar.AbsoluteSize.Y - padding - gap * math.max(count - 1,0)
+		)
+		local buttonHeight = math.clamp(
+			math.floor(availableHeight / count),
+			26,
+			42
+		)
+		local textSize = buttonHeight < 32 and 8 or 10
+
+		for _,button in ipairs(buttons) do
+			button.Size = UDim2.new(1,0,0,buttonHeight)
+			button.TextSize = textSize
+		end
+	end
+
+	sidebar:GetPropertyChangedSignal("AbsoluteSize"):Connect(resizeSidebarTabs)
+	task.defer(resizeSidebarTabs)
+end
+setupCreatorTab()
+
+local function setToggle(button,on,label)
+	if not button or not button.Parent then
+		return
+	end
+	activeToggleButtons[button] = {
+		on = on,
+		label = label
+	}
+	if on then
+		button.BackgroundColor3 = Color3.fromRGB(225,45,60)
+		button.TextColor3 = Color3.fromRGB(255,255,255)
+		button.Text = label.."  [ON]"
+	else
+		button.BackgroundColor3 = SURFACE_2
+		button.TextColor3 = TEXT
+		button.Text = label.."  [OFF]"
+	end
+end
+local function refreshToggleColors()
+	for button,data in pairs(activeToggleButtons) do
+		if button and button.Parent then
+			setToggle(button,data.on,data.label)
+		end
+	end
+end
+local function cycleTheme()
+	themeIndex += 1
+	if themeIndex > #themes then
+		themeIndex = 1
+	end
+	accent = themes[themeIndex]
+	panelStroke.Color = accent
+	status.TextColor3 = accent
+	applyTabVisuals()
+	refreshToggleColors()
+	setStatus("THEME "..themeIndex)
+end
+makeSection(
+	homePage,
+	"NOT RUBY V4",
+	"A rebuilt mobile control panel with free flight, trackers, visual tools and a dedicated House of the Locust page."
+)
+local profileCard = Instance.new("Frame")
+profileCard.Size = UDim2.new(1,0,0,116)
+profileCard.BackgroundColor3 = SURFACE
+profileCard.BorderSizePixel = 0
+profileCard.Parent = homePage
+corner(profileCard,13)
+local profileAvatar = Instance.new("ImageLabel")
+profileAvatar.Size = UDim2.fromOffset(84,84)
+profileAvatar.Position = UDim2.fromOffset(14,16)
+profileAvatar.BackgroundColor3 = SURFACE_2
+profileAvatar.BorderSizePixel = 0
+profileAvatar.ScaleType = Enum.ScaleType.Crop
+profileAvatar.Parent = profileCard
+corner(profileAvatar,42)
+addStroke(profileAvatar,accent,1.5,.1)
+local profileName = Instance.new("TextLabel")
+profileName.BackgroundTransparency = 1
+profileName.Position = UDim2.fromOffset(112,18)
+profileName.Size = UDim2.new(1,-126,0,24)
+profileName.Text = player.DisplayName
+profileName.TextSize = 16
+profileName.Font = Enum.Font.GothamBlack
+profileName.TextColor3 = TEXT
+profileName.TextXAlignment = Enum.TextXAlignment.Left
+profileName.Parent = profileCard
+local profileUser = Instance.new("TextLabel")
+profileUser.BackgroundTransparency = 1
+profileUser.Position = UDim2.fromOffset(112,44)
+profileUser.Size = UDim2.new(1,-126,0,18)
+profileUser.Text = "@"..player.Name
+profileUser.TextSize = 10
+profileUser.Font = Enum.Font.GothamBold
+profileUser.TextColor3 = MUTED
+profileUser.TextXAlignment = Enum.TextXAlignment.Left
+profileUser.Parent = profileCard
+local profileInfo = Instance.new("TextLabel")
+profileInfo.BackgroundTransparency = 1
+profileInfo.Position = UDim2.fromOffset(112,66)
+profileInfo.Size = UDim2.new(1,-126,0,36)
+profileInfo.Text =
+	"USER ID: "..tostring(player.UserId)
+	.."\nACCOUNT AGE: "..tostring(player.AccountAge).." DAYS"
+profileInfo.TextSize = 9
+profileInfo.Font = Enum.Font.GothamBold
+profileInfo.TextColor3 = MUTED
+profileInfo.TextXAlignment = Enum.TextXAlignment.Left
+profileInfo.TextYAlignment = Enum.TextYAlignment.Top
+profileInfo.Parent = profileCard
+task.spawn(function()
+	local ok,image = pcall(function()
+		return Players:GetUserThumbnailAsync(
+			player.UserId,
+			Enum.ThumbnailType.AvatarBust,
+			Enum.ThumbnailSize.Size420x420
+		)
+	end)
+	if ok and image and profileAvatar.Parent then
+		profileAvatar.Image = image
+	end
+end)
+makeSection(homePage,"QUICK CONTROLS","Your most-used controls without changing tabs.")
+local quickFlight,quickNoclip = makePair(homePage,"FREE FLIGHT","NOCLIP")
+local quickPlayers,quickLocust = makePair(homePage,"PLAYER LOCATOR","LOCUST LOCATOR")
+setToggle(quickFlight,false,"FREE FLIGHT")
+setToggle(quickNoclip,false,"NOCLIP")
+setToggle(quickPlayers,false,"PLAYER LOCATOR")
+setToggle(quickLocust,false,"LOCUST LOCATOR")
+makeSection(
+	homePage,
+	"SESSION",
+	"Place: "..tostring(game.Name).."   |   Players: "..tostring(#Players:GetPlayers())
+)
+makeSection(
+	movementPage,
+	"MOVEMENT",
+	"Camera-relative free flight supports pitch, mobile joystick input, and dedicated rise/fall controls."
+)
+local walkBox,walkApply = makeNumberRow(movementPage,"WALK","16","SET WALK")
+local jumpBox,jumpApply = makeNumberRow(movementPage,"JUMP","50","SET JUMP")
+local sprintBox,sprintApply = makeNumberRow(movementPage,"SPRINT","42","SET SPRINT")
+local flyBox,flyApply = makeNumberRow(movementPage,"FLY","70","SET FLY SPEED")
+local flightButton,pitchButton = makePair(movementPage,"FREE FLIGHT [OFF]","PITCH FLIGHT [ON]")
+local sprintButton,noclipButton = makePair(movementPage,"SPRINT [OFF]","NOCLIP [OFF]")
+local resetMovementButton = makeAction(movementPage,"RESET MOVEMENT")
+makeSection(
+	visualsPage,
+	"VISUALS",
+	"Client-side visibility controls. X-ray is event-driven instead of rescanning the whole workspace every frame."
+)
+local nightButton,brightButton = makePair(visualsPage,"NIGHT VISION [OFF]","FULL BRIGHT [OFF]")
+local xrayButton,resetVisualsButton = makePair(visualsPage,"X-RAY [OFF]","RESET VISUALS")
+local fovBox,fovApply = makeNumberRow(visualsPage,"FOV",tostring(math.floor(originalFOV)),"SET FOV")
+local fovResetButton = makeAction(visualsPage,"RESET FOV")
+makeSection(
+	trackersPage,
+	"TRACKERS",
+	"Player markers show display name, username and live distance."
+)
+local playersButton,clearMarkersButton = makePair(trackersPage,"PLAYER LOCATOR [OFF]","CLEAR MARKERS")
+local refreshPlayersButton = makeAction(trackersPage,"REFRESH PLAYERS")
+local trackerInfo = makeSection(
+	trackersPage,
+	"PLAYER TRACKER STATUS",
+	"Inactive"
+)
+makeSection(
+	locustPage,
+	"HOUSE OF THE LOCUST",
+	"Dedicated creature scanner for locusts, monsters, enemies, bosses, insects and tagged NPC models."
+)
+local monsterButton,refreshMonstersButton = makePair(locustPage,"MONSTER LOCATOR [OFF]","RESCAN")
+local radiusBox,radiusApply = makeNumberRow(locustPage,"RADIUS","5000","SET RADIUS")
+local clearMonsterButton = makeAction(locustPage,"CLEAR MONSTER MARKERS")
+local locustStatus = makeSection(
+	locustPage,
+	"SCAN STATUS",
+	"Inactive"
+)
+makeSection(
+	settingsPage,
+	"SETTINGS",
+	"Control the panel itself. Resize and movement locks are independent."
+)
+local lockResizeButton,lockMoveButton = makePair(settingsPage,"LOCK RESIZE [OFF]","LOCK MOVEMENT [OFF]")
+local compactButton,centerButton = makePair(settingsPage,"COMPACT MODE [OFF]","CENTER PANEL")
+local themeButton,resetLayoutButton = makePair(settingsPage,"CYCLE THEME","RESET LAYOUT")
+local unlockAllButton,minimizeSettingsButton = makePair(settingsPage,"UNLOCK ALL","MINIMIZE")
+local resetFeaturesButton = makeAction(settingsPage,"RESET ALL FEATURES")
+makeSection(
+	settingsPage,
+	"RESIZE",
+	"Drag any edge or corner. The resize zones are invisible and preserve the panel position without the mobile jump."
+)
+setToggle(flightButton,false,"FREE FLIGHT")
+setToggle(pitchButton,true,"PITCH FLIGHT")
+setToggle(sprintButton,false,"SPRINT")
+setToggle(noclipButton,false,"NOCLIP")
+setToggle(nightButton,false,"NIGHT VISION")
+setToggle(brightButton,false,"FULL BRIGHT")
+setToggle(xrayButton,false,"X-RAY")
+setToggle(playersButton,false,"PLAYER LOCATOR")
+setToggle(monsterButton,false,"MONSTER LOCATOR")
+setToggle(lockResizeButton,false,"LOCK RESIZE")
+setToggle(lockMoveButton,false,"LOCK MOVEMENT")
+setToggle(compactButton,false,"COMPACT MODE")
+local function applyMovementStats()
+	if not humanoid then
+		return
+	end
+	humanoid.WalkSpeed =
+		sprinting and math.max(walkSpeed,sprintSpeed) or walkSpeed
+	pcall(function()
+		humanoid.UseJumpPower = true
+		humanoid.JumpPower = jumpPower
+	end)
+end
+walkApply.Activated:Connect(function()
+	local value = tonumber(walkBox.Text)
+	if not value then
+		setStatus("INVALID WALK SPEED")
+		return
+	end
+	walkSpeed = math.clamp(value,1,250)
+	applyMovementStats()
+	setStatus("WALK "..tostring(walkSpeed))
+end)
+jumpApply.Activated:Connect(function()
+	local value = tonumber(jumpBox.Text)
+	if not value then
+		setStatus("INVALID JUMP POWER")
+		return
+	end
+	jumpPower = math.clamp(value,0,250)
+	applyMovementStats()
+	setStatus("JUMP "..tostring(jumpPower))
+end)
+sprintApply.Activated:Connect(function()
+	local value = tonumber(sprintBox.Text)
+	if not value then
+		setStatus("INVALID SPRINT SPEED")
+		return
+	end
+	sprintSpeed = math.clamp(value,1,300)
+	applyMovementStats()
+	setStatus("SPRINT SPEED "..tostring(sprintSpeed))
+end)
+flyApply.Activated:Connect(function()
+	local value = tonumber(flyBox.Text)
+	if not value then
+		setStatus("INVALID FLY SPEED")
+		return
+	end
+	flySpeed = math.clamp(value,1,400)
+	setStatus("FLY SPEED "..tostring(flySpeed))
+end)
+radiusApply.Activated:Connect(function()
+	local value = tonumber(radiusBox.Text)
+	if not value then
+		setStatus("INVALID SCAN RADIUS")
+		return
+	end
+	scanRadius = math.clamp(value,100,50000)
+	setStatus("SCAN RADIUS "..tostring(scanRadius))
+end)
+local flightControls = Instance.new("Frame")
+flightControls.Name = "FlightControls"
+flightControls.Size = UDim2.fromOffset(84,172)
+flightControls.AnchorPoint = Vector2.new(1,1)
+flightControls.Position = UDim2.new(1,-15,1,-15)
+flightControls.BackgroundTransparency = 1
+flightControls.Visible = false
+flightControls.ZIndex = 300
+flightControls.Parent = gui
+local function makeFlightHold(text,y)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.fromOffset(68,68)
+	button.Position = UDim2.fromOffset(8,y)
+	button.Text = text
+	button.TextSize = 12
+	button.Font = Enum.Font.GothamBlack
+	button.TextColor3 = TEXT
+	button.BackgroundColor3 = SURFACE_2
+	button.AutoButtonColor = false
+	button.ZIndex = 301
+	button.Parent = flightControls
+	corner(button,16)
+	addStroke(button,accent,1.3,.05)
+	return button
+end
+local upButton = makeFlightHold("UP",0)
+local downButton = makeFlightHold("DOWN",76)
+local function holdButton(button,callback)
+	button.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			callback(true)
+			button.BackgroundColor3 = accent
+			button.TextColor3 = ACTIVE_TEXT
+		end
+	end)
+	button.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			callback(false)
+			button.BackgroundColor3 = SURFACE_2
+			button.TextColor3 = TEXT
+		end
+	end)
+end
+holdButton(upButton,function(value)
+	flyUp = value
+end)
+holdButton(downButton,function(value)
+	flyDown = value
+end)
+local function stopFlight()
+	flying = false
+	flyUp = false
+	flyDown = false
+	if bodyGyro then
+		bodyGyro:Destroy()
+		bodyGyro = nil
+	end
+	if flightVelocity then
+		flightVelocity:Destroy()
+		flightVelocity = nil
+	end
+	if root and root.Parent then
+		root.AssemblyLinearVelocity = Vector3.zero
+	end
+	if humanoid then
+		humanoid.AutoRotate = true
+	end
+	if flightControls and flightControls.Parent then
+		flightControls.Visible = false
+	end
+	if flightButton and flightButton.Parent then
+		setToggle(flightButton,false,"FREE FLIGHT")
+	end
+end
+local function startFlight()
+	if menuDeleted then
+		return
+	end
+	if not character or not character.Parent then
+		loadCharacter()
+	end
+	if not root or not root.Parent or not humanoid then
+		return
+	end
+	if bodyGyro then
+		bodyGyro:Destroy()
+	end
+	if flightVelocity then
+		flightVelocity:Destroy()
+	end
+	root.AssemblyLinearVelocity = Vector3.zero
+	bodyGyro = Instance.new("BodyGyro")
+	bodyGyro.Name = "ClarkFreeFlightGyro"
+	bodyGyro.MaxTorque = Vector3.new(1e8,1e8,1e8)
+	bodyGyro.P = 60000
+	bodyGyro.D = 800
+	bodyGyro.CFrame = root.CFrame
+	bodyGyro.Parent = root
+	flightVelocity = Instance.new("BodyVelocity")
+	flightVelocity.Name = "ClarkFreeFlightVelocity"
+	flightVelocity.MaxForce = Vector3.new(1e9,1e9,1e9)
+	flightVelocity.P = 30000
+	flightVelocity.Velocity = Vector3.zero
+	flightVelocity.Parent = root
+	humanoid.AutoRotate = false
+	flying = true
+	flightControls.Visible = true
+	setToggle(flightButton,true,"FREE FLIGHT")
+end
+local function setFlight(value)
+	if value then
+		startFlight()
+	else
+		stopFlight()
+	end
+	setToggle(quickFlight,flying,"FREE FLIGHT")
+	setStatus(flying and "FREE FLIGHT ON" or "FREE FLIGHT OFF")
+end
+local function setPitchFlight(value)
+	pitchFlight = value
+	setToggle(pitchButton,pitchFlight,"PITCH FLIGHT")
+	setStatus(pitchFlight and "CAMERA PITCH FLIGHT ON" or "LEVEL FLIGHT ON")
+end
+flightButton.Activated:Connect(function()
+	setFlight(not flying)
+end)
+pitchButton.Activated:Connect(function()
+	setPitchFlight(not pitchFlight)
+end)
+RunService.RenderStepped:Connect(function()
+	if menuDeleted then
+		return
+	end
+	if not flying
+		or not root
+		or not root.Parent
+		or not humanoid
+		or not bodyGyro
+		or not flightVelocity then
+		return
+	end
+	camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local direction = Vector3.zero
+	local keyboardUsed = false
+	local look = camera.CFrame.LookVector
+	local right = camera.CFrame.RightVector
+	if not pitchFlight then
+		look = Vector3.new(look.X,0,look.Z)
+		right = Vector3.new(right.X,0,right.Z)
+		if look.Magnitude > .001 then
+			look = look.Unit
+		end
+		if right.Magnitude > .001 then
+			right = right.Unit
+		end
+	end
+	if UIS:IsKeyDown(Enum.KeyCode.W) then
+		direction += look
+		keyboardUsed = true
+	end
+	if UIS:IsKeyDown(Enum.KeyCode.S) then
+		direction -= look
+		keyboardUsed = true
+	end
+	if UIS:IsKeyDown(Enum.KeyCode.D) then
+		direction += right
+		keyboardUsed = true
+	end
+	if UIS:IsKeyDown(Enum.KeyCode.A) then
+		direction -= right
+		keyboardUsed = true
+	end
+	if not keyboardUsed and humanoid.MoveDirection.Magnitude > .03 then
+		local flatLook = Vector3.new(
+			camera.CFrame.LookVector.X,
+			0,
+			camera.CFrame.LookVector.Z
+		)
+		local flatRight = Vector3.new(
+			camera.CFrame.RightVector.X,
+			0,
+			camera.CFrame.RightVector.Z
+		)
+		if flatLook.Magnitude > .001 then
+			flatLook = flatLook.Unit
+		end
+		if flatRight.Magnitude > .001 then
+			flatRight = flatRight.Unit
+		end
+		local move = humanoid.MoveDirection
+		local forwardAmount = move:Dot(flatLook)
+		local rightAmount = move:Dot(flatRight)
+		local mobileLook =
+			pitchFlight and camera.CFrame.LookVector or flatLook
+		local mobileRight =
+			pitchFlight and camera.CFrame.RightVector or flatRight
+		direction += mobileLook * forwardAmount
+		direction += mobileRight * rightAmount
+	end
+	local vertical = 0
+	if flyUp then
+		vertical += 1
+	end
+	if flyDown then
+		vertical -= 1
+	end
+	if UIS:IsKeyDown(Enum.KeyCode.Space)
+		or UIS:IsKeyDown(Enum.KeyCode.E) then
+		vertical += 1
+	end
+	if UIS:IsKeyDown(Enum.KeyCode.LeftControl)
+		or UIS:IsKeyDown(Enum.KeyCode.Q) then
+		vertical -= 1
+	end
+	direction += Vector3.new(0,vertical,0)
+	if direction.Magnitude > 1 then
+		direction = direction.Unit
+	end
+	flightVelocity.Velocity = direction * flySpeed
+	local facing = camera.CFrame.LookVector
+	local flatFacing = Vector3.new(facing.X,0,facing.Z)
+	if flatFacing.Magnitude > .01 then
+		bodyGyro.CFrame =
+			CFrame.lookAt(
+				root.Position,
+				root.Position + flatFacing.Unit
+			)
+	end
+end)
+local function setSprint(value)
+	sprinting = value
+	applyMovementStats()
+	setToggle(sprintButton,sprinting,"SPRINT")
+	setStatus(sprinting and "SPRINT ON" or "SPRINT OFF")
+end
+sprintButton.Activated:Connect(function()
+	setSprint(not sprinting)
+end)
+local function restoreCollision()
+	for part,oldValue in pairs(originalCollision) do
+		if part and part.Parent then
+			part.CanCollide = oldValue
+		end
+	end
+	table.clear(originalCollision)
+end
+local function setNoclip(value)
+	noclip = value
+	setToggle(noclipButton,noclip,"NOCLIP")
+	setToggle(quickNoclip,noclip,"NOCLIP")
+	if not noclip then
+		restoreCollision()
+	end
+	setStatus(noclip and "NOCLIP ON" or "NOCLIP OFF")
+end
+noclipButton.Activated:Connect(function()
+	setNoclip(not noclip)
+end)
+RunService.Stepped:Connect(function()
+	if menuDeleted then
+		return
+	end
+	if not noclip or not character then
+		return
+	end
+	for _,object in ipairs(character:GetDescendants()) do
+		if object:IsA("BasePart") then
+			if originalCollision[object] == nil then
+				originalCollision[object] = object.CanCollide
+			end
+			object.CanCollide = false
+		end
+	end
+end)
+resetMovementButton.Activated:Connect(function()
+	setFlight(false)
+	setSprint(false)
+	setNoclip(false)
+	walkSpeed = 16
+	jumpPower = 50
+	sprintSpeed = 42
+	flySpeed = 70
+	walkBox.Text = "16"
+	jumpBox.Text = "50"
+	sprintBox.Text = "42"
+	flyBox.Text = "70"
+	applyMovementStats()
+	setStatus("MOVEMENT RESET")
+end)
+local function setNightVision(value)
+	nightVision = value
+	setToggle(nightButton,nightVision,"NIGHT VISION")
+	if visionEffect then
+		visionEffect:Destroy()
+		visionEffect = nil
+	end
+	if nightVision then
+		visionEffect = Instance.new("ColorCorrectionEffect")
+		visionEffect.Name = "ClarkNightVision"
+		visionEffect.Brightness = .18
+		visionEffect.Contrast = .12
+		visionEffect.Saturation = -.05
+		visionEffect.TintColor = Color3.fromRGB(165,255,185)
+		visionEffect.Parent = Lighting
+	end
+	setStatus(nightVision and "NIGHT VISION ON" or "NIGHT VISION OFF")
+end
+nightButton.Activated:Connect(function()
+	setNightVision(not nightVision)
+end)
+local function setFullBright(value)
+	fullBright = value
+	setToggle(brightButton,fullBright,"FULL BRIGHT")
+	if fullBright then
+		Lighting.Brightness = 3
+		Lighting.ExposureCompensation = .35
+		Lighting.Ambient = Color3.fromRGB(180,180,180)
+		Lighting.OutdoorAmbient = Color3.fromRGB(180,180,180)
+	else
+		Lighting.Brightness = originalLighting.Brightness
+		Lighting.ExposureCompensation = originalLighting.ExposureCompensation
+		Lighting.Ambient = originalLighting.Ambient
+		Lighting.OutdoorAmbient = originalLighting.OutdoorAmbient
+	end
+	setStatus(fullBright and "FULL BRIGHT ON" or "FULL BRIGHT OFF")
+end
+brightButton.Activated:Connect(function()
+	setFullBright(not fullBright)
+end)
+local function applyXrayPart(object)
+	if not xrayMode
+		or not object:IsA("BasePart")
+		or not character
+		or object:IsDescendantOf(character)
+		or object.Transparency >= 1 then
+		return
+	end
+	if originalTransparency[object] == nil then
+		originalTransparency[object] = object.LocalTransparencyModifier
+	end
+	object.LocalTransparencyModifier = .65
+end
+local function restoreXray()
+	for object,oldValue in pairs(originalTransparency) do
+		if object and object.Parent then
+			object.LocalTransparencyModifier = oldValue
+		end
+	end
+	table.clear(originalTransparency)
+end
+local function setXray(value)
+	xrayMode = value
+	setToggle(xrayButton,xrayMode,"X-RAY")
+	if xrayMode then
+		for _,object in ipairs(workspace:GetDescendants()) do
+			applyXrayPart(object)
+		end
+	else
+		restoreXray()
+	end
+	setStatus(xrayMode and "X-RAY ON" or "X-RAY OFF")
+end
+xrayButton.Activated:Connect(function()
+	setXray(not xrayMode)
+end)
+workspace.DescendantAdded:Connect(function(object)
+	if menuDeleted then
+		return
+	end
+	if xrayMode and object:IsA("BasePart") then
+		task.defer(function()
+			applyXrayPart(object)
+		end)
+	end
+end)
+fovApply.Activated:Connect(function()
+	local value = tonumber(fovBox.Text)
+	if not value then
+		setStatus("INVALID FOV")
+		return
+	end
+	value = math.clamp(value,40,120)
+	camera = workspace.CurrentCamera
+	if camera then
+		camera.FieldOfView = value
+	end
+	fovBox.Text = tostring(math.floor(value))
+	setStatus("FOV "..tostring(value))
+end)
+fovResetButton.Activated:Connect(function()
+	camera = workspace.CurrentCamera
+	if camera then
+		camera.FieldOfView = originalFOV
+	end
+	fovBox.Text = tostring(math.floor(originalFOV))
+	setStatus("FOV RESET")
+end)
+local function resetVisuals()
+	setNightVision(false)
+	setFullBright(false)
+	setXray(false)
+	camera = workspace.CurrentCamera
+	if camera then
+		camera.FieldOfView = originalFOV
+	end
+	fovBox.Text = tostring(math.floor(originalFOV))
+	setStatus("VISUALS RESET")
+end
+resetVisualsButton.Activated:Connect(resetVisuals)
+local function getRoot(model)
+	if not model or not model:IsA("Model") then
+		return nil
+	end
+	local preferred = {
+		"HumanoidRootPart",
+		"UpperTorso",
+		"Torso",
+		"Head"
+	}
+	for _,name in ipairs(preferred) do
+		local part = model:FindFirstChild(name)
+		if part and part:IsA("BasePart") then
+			return part
+		end
+	end
+	for _,object in ipairs(model:GetChildren()) do
+		if object:IsA("BasePart") then
+			return object
+		end
+	end
+	return nil
+end
+local function removeMarker(markerTable,target)
+	local data = markerTable[target]
+	if data then
+		if data.gui then
+			data.gui:Destroy()
+		end
+		markerTable[target] = nil
+	end
+end
+local function clearMarkerTable(markerTable)
+	for _,data in pairs(markerTable) do
+		if data.gui then
+			data.gui:Destroy()
+		end
+	end
+	table.clear(markerTable)
+end
+local function createMarker(target,name,isMonster)
+	if not target or not target:IsA("Model") then
+		return
+	end
+	local targetRoot = getRoot(target)
+	if not targetRoot then
+		return
+	end
+	if root and (root.Position-targetRoot.Position).Magnitude > scanRadius then
+		return
+	end
+	local markerTable = isMonster and monsterMarkers or playerMarkers
+	if markerTable[target] then
+		return
+	end
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = isMonster and "ClarkMonsterMarker" or "ClarkPlayerMarker"
+	billboard.Adornee = targetRoot
+	billboard.Size = UDim2.fromOffset(245,72)
+	billboard.StudsOffset = Vector3.new(0,4,0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = scanRadius
+	billboard.Parent = gui
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.fromScale(1,1)
+	frame.BackgroundTransparency = 1
+	frame.Parent = billboard
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Size = UDim2.new(1,0,0,27)
+	nameLabel.Text = isMonster and "MONSTER // "..name or name
+	nameLabel.TextSize = 12
+	nameLabel.Font = Enum.Font.GothamBlack
+	nameLabel.TextColor3 =
+		isMonster
+		and Color3.fromRGB(255,68,78)
+		or Color3.fromRGB(72,240,125)
+	nameLabel.TextStrokeTransparency = .15
+	nameLabel.Parent = frame
+	local distanceLabel = Instance.new("TextLabel")
+	distanceLabel.BackgroundTransparency = 1
+	distanceLabel.Position = UDim2.fromOffset(0,27)
+	distanceLabel.Size = UDim2.new(1,0,0,20)
+	distanceLabel.Text = "DISTANCE: --"
+	distanceLabel.TextSize = 10
+	distanceLabel.Font = Enum.Font.GothamBold
+	distanceLabel.TextColor3 = TEXT
+	distanceLabel.TextStrokeTransparency = .2
+	distanceLabel.Parent = frame
+	markerTable[target] = {
+		gui = billboard,
+		distance = distanceLabel
+	}
+end
+local function refreshPlayers()
+	clearMarkerTable(playerMarkers)
+	if not playerLocator then
+		return
+	end
+
+	local selectedUserId = tonumber(gui:GetAttribute("TrackerTargetUserId")) or 0
+	local selectedName = tostring(gui:GetAttribute("TrackerTargetName") or "")
+	local foundTarget = false
+	local markedCount = 0
+
+	for _,otherPlayer in ipairs(Players:GetPlayers()) do
+		if otherPlayer ~= player
+			and otherPlayer.Character
+			and (
+				selectedUserId == 0
+				or otherPlayer.UserId == selectedUserId
+			) then
+
+			createMarker(
+				otherPlayer.Character,
+				otherPlayer.DisplayName.."  @"..otherPlayer.Name,
+				false
+			)
+
+			markedCount += 1
+
+			if selectedUserId ~= 0 and otherPlayer.UserId == selectedUserId then
+				foundTarget = true
+			end
+		end
+	end
+
+	if trackerInfo and trackerInfo.Parent then
+		local labels = {}
+		for _,child in ipairs(trackerInfo:GetChildren()) do
+			if child:IsA("TextLabel") then
+				table.insert(labels,child)
+			end
+		end
+
+		if #labels >= 2 then
+			if selectedUserId == 0 then
+				labels[2].Text =
+					"Tracking all players  |  Marked: "..tostring(markedCount)
+			elseif foundTarget then
+				labels[2].Text =
+					"Tracking only @"..selectedName
+			else
+				labels[2].Text =
+					"Selected player is not currently available"
+			end
+		end
+	end
+end
+local function setPlayerLocator(value)
+	playerLocator = value
+	setToggle(playersButton,playerLocator,"PLAYER LOCATOR")
+	setToggle(quickPlayers,playerLocator,"PLAYER LOCATOR")
+	if playerLocator then
+		refreshPlayers()
+	else
+		clearMarkerTable(playerMarkers)
+	end
+	setStatus(playerLocator and "PLAYER LOCATOR ON" or "PLAYER LOCATOR OFF")
+end
+playersButton.Activated:Connect(function()
+	setPlayerLocator(not playerLocator)
+end)
+refreshPlayersButton.Activated:Connect(function()
+	if playerLocator then
+		refreshPlayers()
+		setStatus("PLAYERS REFRESHED")
+	else
+		setStatus("PLAYER LOCATOR IS OFF")
+	end
+end)
+
+local function setupPlayerTrackerSelector()
+	gui:SetAttribute("TrackerTargetUserId",0)
+	gui:SetAttribute("TrackerTargetName","")
+
+	local frame = Instance.new("Frame")
+	frame.Name = "PlayerTargetSelector"
+	frame.Size = UDim2.new(1,0,0,116)
+	frame.BackgroundColor3 = SURFACE
+	frame.BorderSizePixel = 0
+	frame.Parent = trackersPage
+	corner(frame,11)
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Position = UDim2.fromOffset(12,7)
+	titleLabel.Size = UDim2.new(1,-24,0,18)
+	titleLabel.Text = "SELECT PLAYER TO LOCATE"
+	titleLabel.TextSize = 10
+	titleLabel.Font = Enum.Font.GothamBlack
+	titleLabel.TextColor3 = TEXT
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Parent = frame
+
+	local targetBox = Instance.new("TextBox")
+	targetBox.Position = UDim2.fromOffset(10,30)
+	targetBox.Size = UDim2.new(1,-20,0,32)
+	targetBox.PlaceholderText = "Username or display name"
+	targetBox.Text = ""
+	targetBox.ClearTextOnFocus = false
+	targetBox.TextSize = 10
+	targetBox.Font = Enum.Font.GothamBold
+	targetBox.TextColor3 = TEXT
+	targetBox.PlaceholderColor3 = MUTED
+	targetBox.BackgroundColor3 = SURFACE_2
+	targetBox.BorderSizePixel = 0
+	targetBox.Parent = frame
+	corner(targetBox,8)
+
+	local setButton = Instance.new("TextButton")
+	setButton.Position = UDim2.fromOffset(10,70)
+	setButton.Size = UDim2.new(.34,-7,0,34)
+	setButton.Text = "SET TARGET"
+	setButton.TextSize = 9
+	setButton.Font = Enum.Font.GothamBlack
+	setButton.TextColor3 = TEXT
+	setButton.BackgroundColor3 = SURFACE_2
+	setButton.AutoButtonColor = false
+	setButton.Parent = frame
+	corner(setButton,8)
+
+	local nextButton = Instance.new("TextButton")
+	nextButton.Position = UDim2.new(.34,3,0,70)
+	nextButton.Size = UDim2.new(.32,-6,0,34)
+	nextButton.Text = "NEXT PLAYER"
+	nextButton.TextSize = 9
+	nextButton.Font = Enum.Font.GothamBlack
+	nextButton.TextColor3 = TEXT
+	nextButton.BackgroundColor3 = SURFACE_2
+	nextButton.AutoButtonColor = false
+	nextButton.Parent = frame
+	corner(nextButton,8)
+
+	local allButton = Instance.new("TextButton")
+	allButton.Position = UDim2.new(.66,3,0,70)
+	allButton.Size = UDim2.new(.34,-13,0,34)
+	allButton.Text = "ALL PLAYERS"
+	allButton.TextSize = 9
+	allButton.Font = Enum.Font.GothamBlack
+	allButton.TextColor3 = TEXT
+	allButton.BackgroundColor3 = SURFACE_2
+	allButton.AutoButtonColor = false
+	allButton.Parent = frame
+	corner(allButton,8)
+
+	local function findPlayerByText(query)
+		query = string.lower(
+			string.gsub(tostring(query or ""),"^%s*(.-)%s*$","%1")
+		)
+
+		if query == "" then
+			return nil
+		end
+
+		local partialMatch = nil
+
+		for _,otherPlayer in ipairs(Players:GetPlayers()) do
+			if otherPlayer ~= player then
+				local username = string.lower(otherPlayer.Name)
+				local displayName = string.lower(otherPlayer.DisplayName)
+
+				if username == query or displayName == query then
+					return otherPlayer
+				end
+
+				if not partialMatch
+					and (
+						string.sub(username,1,#query) == query
+						or string.sub(displayName,1,#query) == query
+					) then
+					partialMatch = otherPlayer
+				end
+			end
+		end
+
+		return partialMatch
+	end
+
+	local function selectPlayer(otherPlayer)
+		if not otherPlayer or otherPlayer == player then
+			setStatus("PLAYER NOT FOUND")
+			return
+		end
+
+		gui:SetAttribute("TrackerTargetUserId",otherPlayer.UserId)
+		gui:SetAttribute("TrackerTargetName",otherPlayer.Name)
+		targetBox.Text = otherPlayer.Name
+
+		if playerLocator then
+			refreshPlayers()
+		end
+
+		setStatus("TRACKING @"..otherPlayer.Name)
+	end
+
+	setButton.Activated:Connect(function()
+		selectPlayer(findPlayerByText(targetBox.Text))
+	end)
+
+	targetBox.FocusLost:Connect(function(enterPressed)
+		if enterPressed then
+			selectPlayer(findPlayerByText(targetBox.Text))
+		end
+	end)
+
+	nextButton.Activated:Connect(function()
+		local available = {}
+
+		for _,otherPlayer in ipairs(Players:GetPlayers()) do
+			if otherPlayer ~= player then
+				table.insert(available,otherPlayer)
+			end
+		end
+
+		if #available == 0 then
+			setStatus("NO OTHER PLAYERS")
+			return
+		end
+
+		table.sort(available,function(a,b)
+			return string.lower(a.Name) < string.lower(b.Name)
+		end)
+
+		local currentId = tonumber(gui:GetAttribute("TrackerTargetUserId")) or 0
+		local nextIndex = 1
+
+		for index,otherPlayer in ipairs(available) do
+			if otherPlayer.UserId == currentId then
+				nextIndex = index + 1
+				if nextIndex > #available then
+					nextIndex = 1
+				end
+				break
+			end
+		end
+
+		selectPlayer(available[nextIndex])
+	end)
+
+	allButton.Activated:Connect(function()
+		gui:SetAttribute("TrackerTargetUserId",0)
+		gui:SetAttribute("TrackerTargetName","")
+		targetBox.Text = ""
+
+		if playerLocator then
+			refreshPlayers()
+		end
+
+		setStatus("TRACKING ALL PLAYERS")
+	end)
+end
+setupPlayerTrackerSelector()
+
+local monsterWords = {
+	"locust","monster","zombie","creature","beast","enemy",
+	"alien","mutant","boss","npc","insect","bug","spider",
+	"scorpion","demon","ghoul","crawler","creeper","behemoth",
+	"titan","parasite","beetle","wasp","hornet"
+}
+local function normalizeName(name)
+	return string.lower(
+		string.gsub(name or "","[%s_%-%p]+"," ")
+	)
+end
+local function containsMonsterWord(name)
+	name = normalizeName(name)
+	for _,word in ipairs(monsterWords) do
+		if string.find(name,word,1,true) then
+			return true
+		end
+	end
+	return false
+end
+local function isPlayerCharacter(model)
+	for _,otherPlayer in ipairs(Players:GetPlayers()) do
+		if otherPlayer.Character == model then
+			return true
+		end
+	end
+	return false
+end
+local function isMonster(model)
+	if not model or not model:IsA("Model") then
+		return false
+	end
+	if isPlayerCharacter(model) then
+		return false
+	end
+	if model:GetAttribute("IsMonster") == true
+		or model:GetAttribute("Monster") == true
+		or model:GetAttribute("IsEnemy") == true
+		or model:GetAttribute("Enemy") == true then
+		return true
+	end
+	if CollectionService:HasTag(model,"Monster")
+		or CollectionService:HasTag(model,"Enemy")
+		or CollectionService:HasTag(model,"Locust") then
+		return true
+	end
+	return containsMonsterWord(model.Name)
+end
+local function findMonsterModel(object)
+	local current = object
+	while current and current ~= workspace do
+		if current:IsA("Model") and isMonster(current) then
+			return current
+		end
+		current = current.Parent
+	end
+	return nil
+end
+local function refreshMonsters()
+	clearMarkerTable(monsterMarkers)
+	if not monsterLocator then
+		return
+	end
+	local found = {}
+	local count = 0
+	for _,object in ipairs(workspace:GetDescendants()) do
+		if object:IsA("Model") then
+			local monster = findMonsterModel(object)
+			if monster
+				and not found[monster]
+				and not isPlayerCharacter(monster) then
+				local monsterRoot = getRoot(monster)
+				if monsterRoot
+					and (
+						not root
+						or (root.Position-monsterRoot.Position).Magnitude <= scanRadius
+					) then
+					found[monster] = true
+					createMarker(monster,monster.Name,true)
+					count += 1
+				end
+			end
+		end
+	end
+	setStatus("MONSTERS FOUND: "..tostring(count))
+end
+local function setMonsterLocator(value)
+	monsterLocator = value
+	setToggle(monsterButton,monsterLocator,"MONSTER LOCATOR")
+	setToggle(quickLocust,monsterLocator,"LOCUST LOCATOR")
+	if monsterLocator then
+		refreshMonsters()
+	else
+		clearMarkerTable(monsterMarkers)
+	end
+	setStatus(monsterLocator and "MONSTER LOCATOR ON" or "MONSTER LOCATOR OFF")
+end
+monsterButton.Activated:Connect(function()
+	setMonsterLocator(not monsterLocator)
+end)
+refreshMonstersButton.Activated:Connect(function()
+	if monsterLocator then
+		refreshMonsters()
+	else
+		setStatus("MONSTER LOCATOR IS OFF")
+	end
+end)
+clearMonsterButton.Activated:Connect(function()
+	clearMarkerTable(monsterMarkers)
+	setStatus("MONSTER MARKERS CLEARED")
+end)
+workspace.DescendantAdded:Connect(function(object)
+	if menuDeleted then
+		return
+	end
+	if not monsterLocator then
+		return
+	end
+	task.defer(function()
+		task.wait(.1)
+		if not monsterLocator then
+			return
+		end
+		local monster = findMonsterModel(object)
+		if monster
+			and not monsterMarkers[monster]
+			and not isPlayerCharacter(monster) then
+			createMarker(monster,monster.Name,true)
+		end
+	end)
+end)
+local markerTimer = 0
+RunService.RenderStepped:Connect(function(delta)
+	if menuDeleted then
+		return
+	end
+	markerTimer += delta
+	if markerTimer < .2 then
+		return
+	end
+	markerTimer = 0
+	if not root then
+		return
+	end
+	for target,data in pairs(playerMarkers) do
+		local targetRoot = getRoot(target)
+		if not target.Parent or not targetRoot then
+			removeMarker(playerMarkers,target)
+		else
+			local distance =
+				math.floor((root.Position-targetRoot.Position).Magnitude)
+			if distance > scanRadius then
+				data.gui.Enabled = false
+			else
+				data.gui.Enabled = true
+				data.distance.Text = "DISTANCE: "..tostring(distance)
+			end
+		end
+	end
+	for target,data in pairs(monsterMarkers) do
+		local targetRoot = getRoot(target)
+		if not target.Parent or not targetRoot then
+			removeMarker(monsterMarkers,target)
+		else
+			local distance =
+				math.floor((root.Position-targetRoot.Position).Magnitude)
+			if distance > scanRadius then
+				data.gui.Enabled = false
+			else
+				data.gui.Enabled = true
+				data.distance.Text = "DISTANCE: "..tostring(distance)
+			end
+		end
+	end
+end)
+clearMarkersButton.Activated:Connect(function()
+	setPlayerLocator(false)
+	setMonsterLocator(false)
+	clearMarkerTable(playerMarkers)
+	clearMarkerTable(monsterMarkers)
+	setStatus("ALL MARKERS CLEARED")
+end)
+quickFlight.Activated:Connect(function()
+	setFlight(not flying)
+end)
+quickNoclip.Activated:Connect(function()
+	setNoclip(not noclip)
+end)
+quickPlayers.Activated:Connect(function()
+	setPlayerLocator(not playerLocator)
+end)
+quickLocust.Activated:Connect(function()
+	setMonsterLocator(not monsterLocator)
+end)
+local openButton = Instance.new("TextButton")
+openButton.Name = "ClarkOpenButton"
+openButton.Size = UDim2.fromOffset(52,52)
+openButton.Position = UDim2.new(0,9,.5,-26)
+openButton.Text = SKULL
+openButton.TextSize = 24
+openButton.Font = Enum.Font.GothamBlack
+openButton.TextColor3 = TEXT
+openButton.BackgroundColor3 = PANEL
+openButton.Visible = false
+openButton.AutoButtonColor = false
+openButton.Parent = gui
+corner(openButton,26)
+
+-- Mini reopen tab: fixed red outline + drag support.
+local MINI_RED = Color3.fromRGB(225,45,60)
+local openStroke = addStroke(openButton,MINI_RED,2,.02)
+
+local miniDragging = false
+local miniDragInput
+local miniDragStart
+local miniStartAbsolute
+local miniWasDragged = false
+local miniBlockClickUntil = 0
+
+openButton.InputBegan:Connect(function(input)
+	if input.UserInputType ~= Enum.UserInputType.Touch
+		and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+		return
+	end
+
+	miniDragging = true
+	miniDragInput = input
+	miniDragStart = input.Position
+	miniStartAbsolute = openButton.AbsolutePosition
+	miniWasDragged = false
+end)
+
+UIS.InputChanged:Connect(function(input)
+	if not miniDragging or not miniDragStart or not miniStartAbsolute then
+		return
+	end
+
+	local validInput =
+		input.UserInputType == Enum.UserInputType.MouseMovement
+		or (
+			input.UserInputType == Enum.UserInputType.Touch
+			and input == miniDragInput
+		)
+
+	if not validInput then
+		return
+	end
+
+	local delta = input.Position - miniDragStart
+	if delta.Magnitude > 6 then
+		miniWasDragged = true
+	end
+
+	camera = workspace.CurrentCamera
+	local viewport = camera and camera.ViewportSize or Vector2.new(1000,700)
+	local size = openButton.AbsoluteSize
+
+	local x = math.clamp(
+		miniStartAbsolute.X + delta.X,
+		4,
+		math.max(4,viewport.X - size.X - 4)
+	)
+	local y = math.clamp(
+		miniStartAbsolute.Y + delta.Y,
+		4,
+		math.max(4,viewport.Y - size.Y - 4)
+	)
+
+	openButton.Position = UDim2.fromOffset(x,y)
+end)
+
+UIS.InputEnded:Connect(function(input)
+	if not miniDragging then
+		return
+	end
+
+	if input == miniDragInput
+		or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		miniDragging = false
+		miniDragInput = nil
+		miniDragStart = nil
+		miniStartAbsolute = nil
+
+		if miniWasDragged then
+			miniBlockClickUntil = os.clock() + .20
+		end
+	end
+end)
+
+local function minimizePanel()
+	panel.Visible = false
+	openButton.Visible = true
+	flightControls.Visible = flying
+end
+local function reopenPanel()
+	if menuDeleted then
+		return
+	end
+	panel.Visible = true
+	openButton.Visible = false
+	flightControls.Visible = flying
+	setTab(currentTab)
+end
+local function setupDeleteConfirmation()
+	local overlay = Instance.new("Frame")
+	overlay.Name = "DestroyConfirmation"
+	overlay.Size = UDim2.fromScale(1,1)
+	overlay.BackgroundColor3 = Color3.fromRGB(0,0,0)
+	overlay.BackgroundTransparency = .28
+	overlay.BorderSizePixel = 0
+	overlay.Visible = false
+	overlay.Active = true
+	overlay.ZIndex = 900
+	overlay.Parent = gui
+
+	local card = Instance.new("Frame")
+	card.AnchorPoint = Vector2.new(.5,.5)
+	card.Position = UDim2.fromScale(.5,.5)
+	card.Size = UDim2.fromOffset(380,205)
+	card.BackgroundColor3 = BG
+	card.BorderSizePixel = 0
+	card.ZIndex = 901
+	card.Parent = overlay
+	corner(card,18)
+	addStroke(card,Color3.fromRGB(235,68,88),1.7,.02)
+
+	local warning = Instance.new("TextLabel")
+	warning.BackgroundTransparency = 1
+	warning.Position = UDim2.fromOffset(18,18)
+	warning.Size = UDim2.new(1,-36,0,28)
+	warning.Text = "DESTROY NOT RUBY V4?"
+	warning.TextSize = 17
+	warning.Font = Enum.Font.GothamBlack
+	warning.TextColor3 = Color3.fromRGB(255,92,108)
+	warning.TextXAlignment = Enum.TextXAlignment.Center
+	warning.ZIndex = 902
+	warning.Parent = card
+
+	local message = Instance.new("TextLabel")
+	message.BackgroundTransparency = 1
+	message.Position = UDim2.fromOffset(20,52)
+	message.Size = UDim2.new(1,-40,0,70)
+	message.Text = "Are you sure you want to destroy the menu?\nIt will disappear completely with no mini tab."
+	message.TextWrapped = true
+	message.TextSize = 11
+	message.Font = Enum.Font.GothamBold
+	message.TextColor3 = TEXT
+	message.TextXAlignment = Enum.TextXAlignment.Center
+	message.TextYAlignment = Enum.TextYAlignment.Center
+	message.ZIndex = 902
+	message.Parent = card
+
+	local noButton = Instance.new("TextButton")
+	noButton.Size = UDim2.new(.5,-24,0,44)
+	noButton.Position = UDim2.new(0,16,1,-60)
+	noButton.Text = "NO"
+	noButton.TextSize = 11
+	noButton.Font = Enum.Font.GothamBlack
+	noButton.TextColor3 = TEXT
+	noButton.BackgroundColor3 = SURFACE_2
+	noButton.AutoButtonColor = false
+	noButton.ZIndex = 902
+	noButton.Parent = card
+	corner(noButton,11)
+
+	local yesButton = Instance.new("TextButton")
+	yesButton.Size = UDim2.new(.5,-24,0,44)
+	yesButton.Position = UDim2.new(.5,8,1,-60)
+	yesButton.Text = "YES, DESTROY"
+	yesButton.TextSize = 10
+	yesButton.Font = Enum.Font.GothamBlack
+	yesButton.TextColor3 = TEXT
+	yesButton.BackgroundColor3 = Color3.fromRGB(166,42,58)
+	yesButton.AutoButtonColor = false
+	yesButton.ZIndex = 902
+	yesButton.Parent = card
+	corner(yesButton,11)
+
+	local stage = 1
+
+	local function closeVisibleMenuKeepFeatures()
+		-- Keep the ScreenGui alive for feature visuals such as markers/HUD,
+		-- but remove every control that could reopen or control the menu.
+		if flightControls and flightControls.Parent then
+			flightControls.Visible = false
+		end
+		if openButton and openButton.Parent then
+			openButton:Destroy()
+		end
+		if panel and panel.Parent then
+			panel:Destroy()
+		end
+		if overlay and overlay.Parent then
+			overlay:Destroy()
+		end
+	end
+
+	local function destroyAndDisableEverything()
+		if menuDeleted then
+			return
+		end
+		menuDeleted = true
+		universalCleanup()
+		setFlight(false)
+		setSprint(false)
+		setNoclip(false)
+		resetVisuals()
+		setPlayerLocator(false)
+		setMonsterLocator(false)
+		clearMarkerTable(playerMarkers)
+		clearMarkerTable(monsterMarkers)
+		if openButton and openButton.Parent then
+			openButton.Visible = false
+		end
+		if flightControls and flightControls.Parent then
+			flightControls.Visible = false
+		end
+		if gui and gui.Parent then
+			gui:Destroy()
+		end
+	end
+
+	closeButton.Activated:Connect(function()
+		if menuDeleted then
+			return
+		end
+		stage = 1
+		warning.Text = "DESTROY NOT RUBY V4?"
+		message.Text = "Are you sure you want to destroy the menu?\nIt will disappear completely with no mini tab."
+		noButton.Text = "NO"
+		yesButton.Text = "YES, DESTROY"
+		overlay.Visible = true
+	end)
+
+	noButton.Activated:Connect(function()
+		if stage == 1 then
+			overlay.Visible = false
+			return
+		end
+
+		-- NO on the second question means keep every currently active
+		-- feature running. There will be no menu left to turn them off.
+		closeVisibleMenuKeepFeatures()
+	end)
+
+	yesButton.Activated:Connect(function()
+		if menuDeleted then
+			return
+		end
+
+		if stage == 1 then
+			stage = 2
+			warning.Text = "DISABLE ACTIVE FEATURES?"
+			message.Text =
+				"The menu will be destroyed.\n"
+				.."Do you also want to disable all active features?\n\n"
+				.."NO = active features stay on until you leave the game."
+			noButton.Text = "NO, KEEP ON"
+			yesButton.Text = "YES, DISABLE"
+			return
+		end
+
+		destroyAndDisableEverything()
+	end)
+end
+setupDeleteConfirmation()
+minimizeButton.Activated:Connect(minimizePanel)
+minimizeSettingsButton.Activated:Connect(minimizePanel)
+openButton.Activated:Connect(function()
+	if os.clock() < miniBlockClickUntil then
+		return
+	end
+	reopenPanel()
+end)
+local function setupResizing()
+local MIN_PANEL_WIDTH = 430
+local MIN_PANEL_HEIGHT = 320
+local EDGE_SIZE = 12
+local CORNER_SIZE = 24
+local SCREEN_MARGIN = 4
+local resizing = false
+local resizeInput
+local resizeDirection
+local resizeStart
+local resizeStartPosition
+local resizeStartUDimPosition
+local resizeStartSize
+local resizeZones = {}
+local function beginResize(direction,input)
+	if resizeLocked then
+		return
+	end
+	if input.UserInputType ~= Enum.UserInputType.Touch
+		and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+		return
+	end
+	resizing = true
+	resizeInput = input
+	resizeDirection = direction
+	resizeStart = input.Position
+	resizeStartPosition = panel.AbsolutePosition
+	resizeStartUDimPosition = panel.Position
+	resizeStartSize = panel.AbsoluteSize
+	input.Changed:Connect(function()
+		if input.UserInputState == Enum.UserInputState.End then
+			resizing = false
+			resizeInput = nil
+			resizeDirection = nil
+		end
+	end)
+end
+local function createResizeZone(name,direction,size,position,anchorPoint)
+	local zone = Instance.new("TextButton")
+	zone.Name = name
+	zone.Size = size
+	zone.Position = position
+	zone.AnchorPoint = anchorPoint or Vector2.zero
+	zone.BackgroundTransparency = 1
+	zone.BorderSizePixel = 0
+	zone.Text = ""
+	zone.AutoButtonColor = false
+	zone.Active = true
+	zone.ZIndex = 120
+	zone.Parent = panel
+	zone.InputBegan:Connect(function(input)
+		beginResize(direction,input)
+	end)
+	table.insert(resizeZones,zone)
+	return zone
+end
+createResizeZone(
+	"ResizeTop",
+	"top",
+	UDim2.new(1,-CORNER_SIZE * 2,0,EDGE_SIZE),
+	UDim2.fromOffset(CORNER_SIZE,0)
+)
+createResizeZone(
+	"ResizeBottom",
+	"bottom",
+	UDim2.new(1,-CORNER_SIZE * 2,0,EDGE_SIZE),
+	UDim2.new(0,CORNER_SIZE,1,0),
+	Vector2.new(0,1)
+)
+createResizeZone(
+	"ResizeLeft",
+	"left",
+	UDim2.new(0,EDGE_SIZE,1,-CORNER_SIZE * 2),
+	UDim2.fromOffset(0,CORNER_SIZE)
+)
+createResizeZone(
+	"ResizeRight",
+	"right",
+	UDim2.new(0,EDGE_SIZE,1,-CORNER_SIZE * 2),
+	UDim2.new(1,0,0,CORNER_SIZE),
+	Vector2.new(1,0)
+)
+createResizeZone(
+	"ResizeTopLeft",
+	"topLeft",
+	UDim2.fromOffset(CORNER_SIZE,CORNER_SIZE),
+	UDim2.fromOffset(0,0)
+)
+createResizeZone(
+	"ResizeTopRight",
+	"topRight",
+	UDim2.fromOffset(CORNER_SIZE,CORNER_SIZE),
+	UDim2.new(1,0,0,0),
+	Vector2.new(1,0)
+)
+createResizeZone(
+	"ResizeBottomLeft",
+	"bottomLeft",
+	UDim2.fromOffset(CORNER_SIZE,CORNER_SIZE),
+	UDim2.new(0,0,1,0),
+	Vector2.new(0,1)
+)
+createResizeZone(
+	"ResizeBottomRight",
+	"bottomRight",
+	UDim2.fromOffset(CORNER_SIZE,CORNER_SIZE),
+	UDim2.new(1,0,1,0),
+	Vector2.new(1,1)
+)
+local function updateResize(inputPosition)
+	if resizeLocked
+		or not resizing
+		or not resizeDirection
+		or not resizeStart
+		or not resizeStartPosition
+		or not resizeStartUDimPosition
+		or not resizeStartSize then
+		return
+	end
+	local delta = inputPosition - resizeStart
+	camera = workspace.CurrentCamera
+	local viewport =
+		camera and camera.ViewportSize
+		or Vector2.new(1000,700)
+	local startLeft = resizeStartPosition.X
+	local startTop = resizeStartPosition.Y
+	local startWidth = resizeStartSize.X
+	local startHeight = resizeStartSize.Y
+	local fromLeft =
+		resizeDirection == "left"
+		or resizeDirection == "topLeft"
+		or resizeDirection == "bottomLeft"
+	local fromRight =
+		resizeDirection == "right"
+		or resizeDirection == "topRight"
+		or resizeDirection == "bottomRight"
+	local fromTop =
+		resizeDirection == "top"
+		or resizeDirection == "topLeft"
+		or resizeDirection == "topRight"
+	local fromBottom =
+		resizeDirection == "bottom"
+		or resizeDirection == "bottomLeft"
+		or resizeDirection == "bottomRight"
+	local appliedX = 0
+	local appliedY = 0
+	local newWidth = startWidth
+	local newHeight = startHeight
+	if fromLeft then
+		appliedX = math.clamp(
+			delta.X,
+			SCREEN_MARGIN - startLeft,
+			startWidth - MIN_PANEL_WIDTH
+		)
+		newWidth = startWidth - appliedX
+	elseif fromRight then
+		newWidth = math.clamp(
+			startWidth + delta.X,
+			MIN_PANEL_WIDTH,
+			viewport.X - startLeft - SCREEN_MARGIN
+		)
+	end
+	if fromTop then
+		appliedY = math.clamp(
+			delta.Y,
+			SCREEN_MARGIN - startTop,
+			startHeight - MIN_PANEL_HEIGHT
+		)
+		newHeight = startHeight - appliedY
+	elseif fromBottom then
+		newHeight = math.clamp(
+			startHeight + delta.Y,
+			MIN_PANEL_HEIGHT,
+			viewport.Y - startTop - SCREEN_MARGIN
+		)
+	end
+	panel.Position = UDim2.new(
+		resizeStartUDimPosition.X.Scale,
+		resizeStartUDimPosition.X.Offset + appliedX,
+		resizeStartUDimPosition.Y.Scale,
+		resizeStartUDimPosition.Y.Offset + appliedY
+	)
+	panel.Size = UDim2.fromOffset(newWidth,newHeight)
+end
+UIS.InputChanged:Connect(function(input)
+	if not resizing then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		updateResize(input.Position)
+	elseif input.UserInputType == Enum.UserInputType.Touch
+		and input == resizeInput then
+		updateResize(input.Position)
+	end
+end)
+UIS.InputEnded:Connect(function(input)
+	if input == resizeInput
+		or (
+			resizing
+			and input.UserInputType == Enum.UserInputType.MouseButton1
+		) then
+		resizing = false
+		resizeInput = nil
+		resizeDirection = nil
+	end
+end)
+end
+setupResizing()
+local function setupDragging()
+local dragging = false
+local dragInput
+local dragStart
+local dragStartPosition
+header.InputBegan:Connect(function(input)
+	if movementLocked then
+		return
+	end
+	local position = input.Position
+	local closePos = closeButton.AbsolutePosition
+	local closeSize = closeButton.AbsoluteSize
+	local minPos = minimizeButton.AbsolutePosition
+	local minSize = minimizeButton.AbsoluteSize
+	local insideClose =
+		position.X >= closePos.X
+		and position.X <= closePos.X + closeSize.X
+		and position.Y >= closePos.Y
+		and position.Y <= closePos.Y + closeSize.Y
+	local insideMin =
+		position.X >= minPos.X
+		and position.X <= minPos.X + minSize.X
+		and position.Y >= minPos.Y
+		and position.Y <= minPos.Y + minSize.Y
+	if insideClose or insideMin then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.Touch
+		or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragInput = input
+		dragStart = input.Position
+		dragStartPosition = panel.Position
+	end
+end)
+UIS.InputChanged:Connect(function(input)
+	if movementLocked or not dragging then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+		or (
+			input.UserInputType == Enum.UserInputType.Touch
+			and input == dragInput
+		) then
+		local delta = input.Position - dragStart
+		panel.Position = UDim2.new(
+			dragStartPosition.X.Scale,
+			dragStartPosition.X.Offset + delta.X,
+			dragStartPosition.Y.Scale,
+			dragStartPosition.Y.Offset + delta.Y
+		)
+	end
+end)
+UIS.InputEnded:Connect(function(input)
+	if input == dragInput
+		or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+		dragInput = nil
+	end
+end)
+end
+setupDragging()
+lockResizeButton.Activated:Connect(function()
+	resizeLocked = not resizeLocked
+	setToggle(lockResizeButton,resizeLocked,"LOCK RESIZE")
+	setStatus(resizeLocked and "RESIZE LOCKED" or "RESIZE UNLOCKED")
+end)
+lockMoveButton.Activated:Connect(function()
+	movementLocked = not movementLocked
+	setToggle(lockMoveButton,movementLocked,"LOCK MOVEMENT")
+	setStatus(movementLocked and "MOVEMENT LOCKED" or "MOVEMENT UNLOCKED")
+end)
+local compactRestoreSize
+local compactRestorePosition
+compactButton.Activated:Connect(function()
+	compactMode = not compactMode
+	setToggle(compactButton,compactMode,"COMPACT MODE")
+	if compactMode then
+		compactRestoreSize = panel.AbsoluteSize
+		compactRestorePosition = panel.Position
+		panel.Size = UDim2.fromOffset(440,330)
+	else
+		if compactRestoreSize then
+			panel.Size = UDim2.fromOffset(
+				compactRestoreSize.X,
+				compactRestoreSize.Y
+			)
+		else
+			panel.Size = UDim2.fromOffset(560,430)
+		end
+		if compactRestorePosition then
+			panel.Position = compactRestorePosition
+		end
+	end
+	setStatus(compactMode and "COMPACT MODE ON" or "COMPACT MODE OFF")
+end)
+centerButton.Activated:Connect(function()
+	panel.Position = UDim2.new(
+		.5,
+		-math.floor(panel.AbsoluteSize.X/2),
+		.5,
+		-math.floor(panel.AbsoluteSize.Y/2)
+	)
+	setStatus("PANEL CENTERED")
+end)
+themeButton.Activated:Connect(function()
+	cycleTheme()
+	openStroke.Color = MINI_RED
+	for _,button in ipairs({upButton,downButton}) do
+		local s = button:FindFirstChildOfClass("UIStroke")
+		if s then
+			s.Color = accent
+		end
+	end
+end)
+resetLayoutButton.Activated:Connect(function()
+	compactMode = false
+	setToggle(compactButton,false,"COMPACT MODE")
+	panel.Size = UDim2.fromOffset(560,430)
+	panel.Position = UDim2.new(.5,-280,.5,-215)
+	setStatus("LAYOUT RESET")
+end)
+unlockAllButton.Activated:Connect(function()
+	resizeLocked = false
+	movementLocked = false
+	setToggle(lockResizeButton,false,"LOCK RESIZE")
+	setToggle(lockMoveButton,false,"LOCK MOVEMENT")
+	setStatus("PANEL UNLOCKED")
+end)
+local function resetAllFeatures()
+	universalCleanup()
+	setFlight(false)
+	setSprint(false)
+	setNoclip(false)
+	resetVisuals()
+	setPlayerLocator(false)
+	setMonsterLocator(false)
+	walkSpeed = 16
+	jumpPower = 50
+	sprintSpeed = 42
+	flySpeed = 70
+	scanRadius = 5000
+	walkBox.Text = "16"
+	jumpBox.Text = "50"
+	sprintBox.Text = "42"
+	flyBox.Text = "70"
+	radiusBox.Text = "5000"
+	applyMovementStats()
+	setStatus("ALL FEATURES RESET")
+end
+resetFeaturesButton.Activated:Connect(resetAllFeatures)
+local function setupUniversalExtras()
+	local originalGravity = workspace.Gravity
+	local liveHudEnabled = false
+	local frozen = false
+	local performanceMode = false
+	local fakeLagEnabled = false
+	local fakeLagHold = 2
+	local fakeLagRelease = .05
+	local fakeLagToken = 0
+	local fakeLagHeldRoot = nil
+	local frozenRoot = nil
+	local performanceStates = {}
+	makeSection(
+		homePage,
+		"UNIVERSAL TOOLS",
+		"Extra utilities for movement, character control, performance and live session information."
+	)
+	local gravityBox,gravityApply = makeNumberRow(
+		homePage,
+		"GRAVITY",
+		tostring(math.floor(workspace.Gravity)),
+		"SET GRAVITY"
+	)
+	local resetGravityButton = makeAction(homePage,"RESET GRAVITY")
+	local hudButton,freezeButton = makePair(
+		homePage,
+		"LIVE HUD [OFF]",
+		"FREEZE [OFF]"
+	)
+	local sitButton,jumpButton = makePair(homePage,"SIT / STAND","JUMP")
+	local performanceButton,cameraResetButton = makePair(
+		homePage,
+		"PERFORMANCE [OFF]",
+		"RESET CAMERA"
+	)
+	local fakeLagButton = makeAction(homePage,"FAKE LAG [OFF]")
+	local fakeLagBox,fakeLagApply = makeNumberRow(
+		homePage,
+		"FAKE LAG",
+		"2",
+		"SET HOLD"
+	)
+	local refreshCharacterButton,respawnButton = makePair(
+		homePage,
+		"REFRESH CHARACTER",
+		"RESPAWN"
+	)
+	setToggle(hudButton,false,"LIVE HUD")
+	setToggle(freezeButton,false,"FREEZE")
+	setToggle(performanceButton,false,"PERFORMANCE")
+	setToggle(fakeLagButton,false,"FAKE LAG")
+	local hud = Instance.new("Frame")
+	hud.Name = "ClarkLiveHUD"
+	hud.Size = UDim2.fromOffset(250,92)
+	hud.Position = UDim2.fromOffset(14,14)
+	hud.BackgroundColor3 = PANEL
+	hud.BackgroundTransparency = .08
+	hud.BorderSizePixel = 0
+	hud.Visible = false
+	hud.ZIndex = 400
+	hud.Parent = gui
+	corner(hud,12)
+	addStroke(hud,accent,1.2,.08)
+	local hudText = Instance.new("TextLabel")
+	hudText.BackgroundTransparency = 1
+	hudText.Position = UDim2.fromOffset(10,8)
+	hudText.Size = UDim2.new(1,-20,1,-16)
+	hudText.Text = "NOT RUBY V4 // LIVE HUD"
+	hudText.TextSize = 10
+	hudText.Font = Enum.Font.GothamBold
+	hudText.TextColor3 = TEXT
+	hudText.TextXAlignment = Enum.TextXAlignment.Left
+	hudText.TextYAlignment = Enum.TextYAlignment.Top
+	hudText.Parent = hud
+	local fps = 0
+	local frames = 0
+	local fpsTimer = 0
+	RunService.RenderStepped:Connect(function(delta)
+		if menuDeleted then
+			return
+		end
+		frames += 1
+		fpsTimer += delta
+		if fpsTimer >= .5 then
+			fps = math.floor(frames / fpsTimer + .5)
+			frames = 0
+			fpsTimer = 0
+		end
+		if not liveHudEnabled or not hud.Parent then
+			return
+		end
+		local pos = root and root.Parent and root.Position or Vector3.zero
+		local speed = root and root.Parent and root.AssemblyLinearVelocity.Magnitude or 0
+		hudText.Text = string.format(
+			"NOT RUBY V4 // LIVE HUD\\nFPS: %d   SPEED: %d\\nX: %d   Y: %d   Z: %d\\nGRAVITY: %d",
+			fps,
+			math.floor(speed + .5),
+			math.floor(pos.X + .5),
+			math.floor(pos.Y + .5),
+			math.floor(pos.Z + .5),
+			math.floor(workspace.Gravity + .5)
+		)
+	end)
+	gravityApply.Activated:Connect(function()
+		local value = tonumber(gravityBox.Text)
+		if not value then
+			setStatus("INVALID GRAVITY")
+			return
+		end
+		workspace.Gravity = math.clamp(value,0,500)
+		gravityBox.Text = tostring(math.floor(workspace.Gravity))
+		setStatus("GRAVITY "..tostring(math.floor(workspace.Gravity)))
+	end)
+	resetGravityButton.Activated:Connect(function()
+		workspace.Gravity = originalGravity
+		gravityBox.Text = tostring(math.floor(originalGravity))
+		setStatus("GRAVITY RESET")
+	end)
+	hudButton.Activated:Connect(function()
+		liveHudEnabled = not liveHudEnabled
+		hud.Visible = liveHudEnabled
+		setToggle(hudButton,liveHudEnabled,"LIVE HUD")
+		setStatus(liveHudEnabled and "LIVE HUD ON" or "LIVE HUD OFF")
+	end)
+	local function releaseFakeLagRoot()
+		if fakeLagHeldRoot and fakeLagHeldRoot.Parent then
+			-- Do not fight the normal Freeze option if it was enabled separately.
+			if not frozen then
+				fakeLagHeldRoot.Anchored = false
+			end
+		end
+		fakeLagHeldRoot = nil
+	end
+
+	local function stopFakeLag()
+		fakeLagEnabled = false
+		fakeLagToken += 1
+		releaseFakeLagRoot()
+	end
+
+	local function startFakeLag()
+		stopFakeLag()
+
+		-- Fake Lag and the permanent Freeze button both use Anchored,
+		-- so turn Freeze off first to avoid the two systems fighting.
+		if frozenRoot and frozenRoot.Parent then
+			frozenRoot.Anchored = false
+			frozenRoot = nil
+		end
+		frozen = false
+		setToggle(freezeButton,false,"FREEZE")
+
+		fakeLagEnabled = true
+		fakeLagToken += 1
+		local token = fakeLagToken
+
+		task.spawn(function()
+			while fakeLagEnabled and fakeLagToken == token do
+				if not root or not root.Parent then
+					task.wait(.1)
+					continue
+				end
+
+				local currentRoot = root
+				fakeLagHeldRoot = currentRoot
+				currentRoot.Anchored = true
+
+				local elapsed = 0
+				while fakeLagEnabled
+					and fakeLagToken == token
+					and currentRoot.Parent
+					and elapsed < fakeLagHold do
+
+					local step = math.min(.05,fakeLagHold - elapsed)
+					task.wait(step)
+					elapsed += step
+				end
+
+				if currentRoot.Parent and currentRoot.Anchored and not frozen then
+					currentRoot.Anchored = false
+				end
+				fakeLagHeldRoot = nil
+
+				if fakeLagEnabled and fakeLagToken == token then
+					task.wait(fakeLagRelease)
+				end
+			end
+
+			releaseFakeLagRoot()
+		end)
+	end
+
+	local function setFakeLag(value)
+		if value then
+			startFakeLag()
+		else
+			stopFakeLag()
+		end
+
+		setToggle(fakeLagButton,fakeLagEnabled,"FAKE LAG")
+		setStatus(fakeLagEnabled and "FAKE LAG ON" or "FAKE LAG OFF")
+	end
+
+	fakeLagApply.Activated:Connect(function()
+		local value = tonumber(fakeLagBox.Text)
+		if not value then
+			setStatus("INVALID FAKE LAG HOLD")
+			return
+		end
+
+		fakeLagHold = math.clamp(value,.05,10)
+		fakeLagBox.Text = tostring(fakeLagHold)
+		setStatus("FAKE LAG HOLD "..tostring(fakeLagHold).."s")
+	end)
+
+	fakeLagButton.Activated:Connect(function()
+		setFakeLag(not fakeLagEnabled)
+	end)
+	freezeButton.Activated:Connect(function()
+		if not root or not root.Parent then
+			loadCharacter()
+		end
+		frozen = not frozen
+		if frozen and root then
+			frozenRoot = root
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.Anchored = true
+		elseif frozenRoot and frozenRoot.Parent then
+			frozenRoot.Anchored = false
+			frozenRoot = nil
+		end
+		setToggle(freezeButton,frozen,"FREEZE")
+		setStatus(frozen and "CHARACTER FROZEN" or "CHARACTER UNFROZEN")
+	end)
+	sitButton.Activated:Connect(function()
+		if humanoid then
+			humanoid.Sit = not humanoid.Sit
+			setStatus(humanoid.Sit and "SITTING" or "STANDING")
+		end
+	end)
+	jumpButton.Activated:Connect(function()
+		if not character or not character.Parent or not humanoid or not root or not root.Parent then
+			loadCharacter()
+		end
+		if frozenRoot and frozenRoot.Parent then
+			frozenRoot.Anchored = false
+			frozenRoot = nil
+			frozen = false
+			setToggle(freezeButton,false,"FREEZE")
+		end
+		if humanoid and root then
+			if fakeLagEnabled and root.Anchored then
+				root.Anchored = false
+				fakeLagHeldRoot = nil
+				task.wait()
+			end
+			humanoid.Sit = false
+			humanoid.Jump = true
+			pcall(function()
+				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+			end)
+			local velocity = root.AssemblyLinearVelocity
+			root.AssemblyLinearVelocity = Vector3.new(
+				velocity.X,
+				math.max(velocity.Y,jumpPower),
+				velocity.Z
+			)
+			setStatus("JUMP")
+		end
+	end)
+	local function isPerformanceObject(object)
+		return object:IsA("ParticleEmitter")
+			or object:IsA("Trail")
+			or object:IsA("Beam")
+			or object:IsA("Smoke")
+			or object:IsA("Fire")
+			or object:IsA("Sparkles")
+	end
+	local function disablePerformanceObject(object)
+		if not performanceMode or not isPerformanceObject(object) then
+			return
+		end
+		if performanceStates[object] == nil then
+			performanceStates[object] = object.Enabled
+		end
+		object.Enabled = false
+	end
+	local originalShadows = Lighting.GlobalShadows
+	local function restorePerformance()
+		for object,enabled in pairs(performanceStates) do
+			if object and object.Parent then
+				object.Enabled = enabled
+			end
+		end
+		table.clear(performanceStates)
+		Lighting.GlobalShadows = originalShadows
+	end
+	local function setPerformance(value)
+		performanceMode = value
+		if performanceMode then
+			originalShadows = Lighting.GlobalShadows
+			Lighting.GlobalShadows = false
+			for _,object in ipairs(workspace:GetDescendants()) do
+				disablePerformanceObject(object)
+			end
+		else
+			restorePerformance()
+		end
+		setToggle(performanceButton,performanceMode,"PERFORMANCE")
+		setStatus(performanceMode and "PERFORMANCE MODE ON" or "PERFORMANCE MODE OFF")
+	end
+	workspace.DescendantAdded:Connect(function(object)
+		if menuDeleted or not performanceMode then
+			return
+		end
+		task.defer(function()
+			if not menuDeleted then
+				disablePerformanceObject(object)
+			end
+		end)
+	end)
+	performanceButton.Activated:Connect(function()
+		setPerformance(not performanceMode)
+	end)
+	cameraResetButton.Activated:Connect(function()
+		camera = workspace.CurrentCamera
+		if camera and humanoid then
+			camera.CameraType = Enum.CameraType.Custom
+			camera.CameraSubject = humanoid
+			camera.FieldOfView = originalFOV
+			fovBox.Text = tostring(math.floor(originalFOV))
+			setStatus("CAMERA RESET")
+		end
+	end)
+	refreshCharacterButton.Activated:Connect(function()
+		if menuDeleted then
+			return
+		end
+
+		local oldCharacter = player.Character
+		local wasFlying = flying
+
+		if frozenRoot and frozenRoot.Parent then
+			frozenRoot.Anchored = false
+			frozenRoot = nil
+			frozen = false
+			setToggle(freezeButton,false,"FREEZE")
+		end
+
+		if wasFlying then
+			stopFlight()
+		end
+
+		setStatus("REFRESHING CHARACTER...")
+
+		local oldHumanoid =
+			oldCharacter
+			and oldCharacter:FindFirstChildOfClass("Humanoid")
+
+		if oldHumanoid then
+			oldHumanoid.Health = 0
+		elseif oldCharacter then
+			pcall(function()
+				oldCharacter:BreakJoints()
+			end)
+		end
+
+		task.spawn(function()
+			local deadline = os.clock() + 10
+
+			repeat
+				task.wait(.1)
+			until menuDeleted
+				or (
+					player.Character
+					and player.Character ~= oldCharacter
+				)
+				or os.clock() >= deadline
+
+			if menuDeleted then
+				return
+			end
+
+			if not player.Character or player.Character == oldCharacter then
+				setStatus("CHARACTER REFRESH FAILED")
+				return
+			end
+
+			loadCharacter()
+			task.wait(.15)
+			applyMovementStats()
+
+			if wasFlying and root and humanoid then
+				startFlight()
+			end
+
+			if playerLocator then
+				refreshPlayers()
+			end
+
+			if monsterLocator then
+				task.defer(refreshMonsters)
+			end
+
+			setStatus("CHARACTER REFRESHED")
+		end)
+	end)
+	respawnButton.Activated:Connect(function()
+		if humanoid then
+			humanoid.Health = 0
+			setStatus("RESPAWNING")
+		end
+	end)
+	player.CharacterAdded:Connect(function()
+		frozen = false
+		frozenRoot = nil
+		fakeLagHeldRoot = nil
+		if freezeButton and freezeButton.Parent then
+			setToggle(freezeButton,false,"FREEZE")
+		end
+	end)
+	universalCleanup = function()
+		liveHudEnabled = false
+		if hud and hud.Parent then
+			hud.Visible = false
+		end
+		if frozenRoot and frozenRoot.Parent then
+			frozenRoot.Anchored = false
+		end
+		frozen = false
+		frozenRoot = nil
+		if performanceMode then
+			performanceMode = false
+			restorePerformance()
+		end
+		if fakeLagEnabled then
+			stopFakeLag()
+		else
+			releaseFakeLagRoot()
+		end
+		if fakeLagButton and fakeLagButton.Parent then
+			setToggle(fakeLagButton,false,"FAKE LAG")
+		end
+		workspace.Gravity = originalGravity
+	end
+end
+setupUniversalExtras()
+Players.PlayerAdded:Connect(function(otherPlayer)
+	if menuDeleted then
+		return
+	end
+	if not playerLocator then
+		return
+	end
+	otherPlayer.CharacterAdded:Connect(function()
+		task.wait(.2)
+		if playerLocator then
+			refreshPlayers()
+		end
+	end)
+end)
+Players.PlayerRemoving:Connect(function()
+	if menuDeleted then
+		return
+	end
+	if playerLocator then
+		task.defer(refreshPlayers)
+	end
+end)
+player.CharacterAdded:Connect(function(newCharacter)
+	if menuDeleted then
+		return
+	end
+	stopFlight()
+	restoreCollision()
+	character = newCharacter
+	humanoid = newCharacter:WaitForChild("Humanoid")
+	root = newCharacter:WaitForChild("HumanoidRootPart")
+	task.wait(.1)
+	applyMovementStats()
+	if playerLocator then
+		refreshPlayers()
+	end
+	if monsterLocator then
+		task.defer(refreshMonsters)
+	end
+end)
+local function setupProfileIntro()
+local entering = false
+panel.Visible = false
+local intro = Instance.new("Frame")
+intro.Name = "ClarkIntro"
+intro.Size = UDim2.fromScale(1,1)
+intro.BackgroundColor3 = Color3.fromRGB(3,4,7)
+intro.BackgroundTransparency = .12
+intro.BorderSizePixel = 0
+intro.ZIndex = 500
+intro.Parent = gui
+local introCard = Instance.new("Frame")
+introCard.AnchorPoint = Vector2.new(.5,.5)
+introCard.Position = UDim2.fromScale(.5,.5)
+introCard.Size = UDim2.fromOffset(0,0)
+introCard.BackgroundColor3 = BG
+introCard.BorderSizePixel = 0
+introCard.ZIndex = 501
+introCard.Parent = intro
+corner(introCard,20)
+local introStroke = addStroke(introCard,accent,1.8,.02)
+local introAvatar = Instance.new("ImageLabel")
+introAvatar.AnchorPoint = Vector2.new(.5,0)
+introAvatar.Position = UDim2.new(.5,0,0,65)
+introAvatar.Size = UDim2.fromOffset(122,122)
+introAvatar.BackgroundColor3 = SURFACE_2
+introAvatar.BorderSizePixel = 0
+introAvatar.ScaleType = Enum.ScaleType.Crop
+introAvatar.ZIndex = 502
+introAvatar.Parent = introCard
+corner(introAvatar,61)
+addStroke(introAvatar,accent,1.5,.05)
+local introTitle = Instance.new("TextLabel")
+introTitle.BackgroundTransparency = 1
+introTitle.Position = UDim2.fromOffset(18,17)
+introTitle.Size = UDim2.new(1,-36,0,27)
+introTitle.Text = "NOT RUBY V4 // HUB"
+introTitle.TextSize = 14
+introTitle.Font = Enum.Font.GothamBlack
+introTitle.TextColor3 = TEXT
+introTitle.TextXAlignment = Enum.TextXAlignment.Center
+introTitle.ZIndex = 502
+introTitle.Parent = introCard
+local introName = Instance.new("TextLabel")
+introName.BackgroundTransparency = 1
+introName.Position = UDim2.fromOffset(18,199)
+introName.Size = UDim2.new(1,-36,0,28)
+introName.Text = player.DisplayName
+introName.TextSize = 18
+introName.Font = Enum.Font.GothamBlack
+introName.TextColor3 = TEXT
+introName.TextXAlignment = Enum.TextXAlignment.Center
+introName.ZIndex = 502
+introName.Parent = introCard
+local introUser = Instance.new("TextLabel")
+introUser.BackgroundTransparency = 1
+introUser.Position = UDim2.fromOffset(18,229)
+introUser.Size = UDim2.new(1,-36,0,20)
+introUser.Text = "@"..player.Name
+introUser.TextSize = 10
+introUser.Font = Enum.Font.GothamBold
+introUser.TextColor3 = MUTED
+introUser.TextXAlignment = Enum.TextXAlignment.Center
+introUser.ZIndex = 502
+introUser.Parent = introCard
+local enterButton = Instance.new("TextButton")
+enterButton.AnchorPoint = Vector2.new(.5,1)
+enterButton.Position = UDim2.new(.5,0,1,-18)
+enterButton.Size = UDim2.new(1,-36,0,46)
+enterButton.Text = "ENTER NOT RUBY"
+enterButton.TextSize = 11
+enterButton.Font = Enum.Font.GothamBlack
+enterButton.TextColor3 = ACTIVE_TEXT
+enterButton.BackgroundColor3 = accent
+enterButton.AutoButtonColor = false
+enterButton.ZIndex = 502
+enterButton.Parent = introCard
+corner(enterButton,12)
+task.spawn(function()
+	local ok,image = pcall(function()
+		return Players:GetUserThumbnailAsync(
+			player.UserId,
+			Enum.ThumbnailType.AvatarBust,
+			Enum.ThumbnailSize.Size420x420
+		)
+	end)
+	if ok and image then
+		if introAvatar.Parent then
+			introAvatar.Image = image
+		end
+		if profileAvatar.Parent then
+			profileAvatar.Image = image
+		end
+	end
+end)
+TweenService:Create(
+	introCard,
+	TweenInfo.new(.28,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),
+	{Size = UDim2.fromOffset(345,340)}
+):Play()
+enterButton.Activated:Connect(function()
+	if entering or menuDeleted then
+		return
+	end
+	entering = true
+	panel.Visible = true
+	setTab("HOME")
+	local tween = TweenService:Create(
+		intro,
+		TweenInfo.new(.18),
+		{BackgroundTransparency = 1}
+	)
+	tween:Play()
+	tween.Completed:Wait()
+	if intro then
+		intro:Destroy()
+	end
+	setStatus("READY // "..string.upper(player.DisplayName))
+end)
+end
+setupProfileIntro()
+applyMovementStats()
+applyTabVisuals()
+setStatus("READY")
