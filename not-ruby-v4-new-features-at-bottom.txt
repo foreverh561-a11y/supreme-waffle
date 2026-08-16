@@ -8965,9 +8965,7 @@ local function setupShooterGamesTab()
 			state.aimbot = false
 			state.lockedTarget = nil
 			aimbotButton.Text = "AIMBOT [LOCKED]"
-			setStatus(
-				"SET AIM_ASSIST_PLACE_ID TO YOUR GAME PLACEID"
-			)
+		
 			return
 		end
 
@@ -8995,14 +8993,6 @@ local function setupShooterGamesTab()
 			or "AIMBOT OFF"
 		)
 	end
-
-	local function setAimAssist(value)
-		if not aimAssistAllowed then
-			state.aimAssist = false
-			aimAssistButton.Text = "AIM ASSIST [LOCKED]"
-			setStatus(
-				"SET AIM_ASSIST_PLACE_ID TO YOUR GAME PLACEID"
-			)
 			return
 		end
 
