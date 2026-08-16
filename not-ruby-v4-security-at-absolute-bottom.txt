@@ -9315,21 +9315,5 @@ local function setupShooterGamesTab(shooterSecurityAllowed)
 	end)
 end
 
---============================================================
--- SHOOTER SECURITY // ABSOLUTE BOTTOM
--- AIM ASSIST + AIMBOT PLACEID LOCK
---
--- Replace ONLY "placeid" with your numeric Roblox PlaceId.
--- Example:
--- local SHOOTER_ALLOWED_PLACE_ID = tonumber("1234567890")
---============================================================
 
-local SHOOTER_ALLOWED_PLACE_ID = tonumber("placeid")
-
-local function shooterSecurityAllowed()
-	return SHOOTER_ALLOWED_PLACE_ID ~= nil
-		and game.PlaceId == SHOOTER_ALLOWED_PLACE_ID
-end
-
--- Create the shooter tab only after the security checker exists.
-setupShooterGamesTab(shooterSecurityAllowed)
+setupShooterGamesTab(shooterSecurityDenied)
